@@ -49,3 +49,9 @@
   `evaluate` — с контекстом `watch`/`hover`, не `repl` (в CodeLLDB это команды LLDB).
 - CodeLLDB: путь из настроек → расширение VS Code / Insiders / Cursor / VSCodium (новейшее) → скачанный в `<system>/rust-support/codelldb/<ver>`.
   **Сам ничего не скачивает**: только по кнопке пользователя, с подтверждением (версия, URL, размер), через `HttpRequests`, распаковка `java.util.zip`.
+- **Прокси и зеркала реестра.** Реестр крейтов может быть за системным/корпоративным прокси или заменён зеркалом
+  (`~/.cargo/config.toml`: `[http] proxy`, `[source.crates-io] replace-with`, `[registries]`; env `HTTPS_PROXY`/`CARGO_HTTP_PROXY`).
+  Данные о крейтах (версии, features, описание) — через сам `cargo` (`cargo info`, `cargo metadata`, `cargo add`): он применяет
+  свою конфигурацию прокси и зеркал. Сначала локальный кэш реестра (`$CARGO_HOME/registry/index`, `registry/cache`), сеть — только
+  по действию пользователя. Если всё же нужен прямой HTTP — только `HttpRequests` (прокси IDE, в т.ч. системный/PAC), никогда
+  захардкоженный `crates.io` в обход настроенного зеркала.
