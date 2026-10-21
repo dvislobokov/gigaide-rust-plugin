@@ -251,6 +251,8 @@ object RustAnalyzerOptions {
         // indexing every crate of the dependency graph at start: fast first completion, at the price of memory for crates never opened
         "cachePriming" to mapOf("enable" to settings.primeCaches),
         "lru" to mapOf("capacity" to settings.lruCapacity),
+        // the postfix templates are the plugin's (Settings | Editor | General | Postfix Completion): the server's would double them after `.`
+        "completion" to mapOf("postfix" to mapOf("enable" to false)),
         "inlayHints" to mapOf(
             "typeHints" to mapOf("enable" to settings.inlayHints),
             "parameterHints" to mapOf("enable" to settings.inlayHints),
