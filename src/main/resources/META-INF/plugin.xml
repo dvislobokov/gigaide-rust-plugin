@@ -38,6 +38,8 @@
         <lang.quoteHandler language="Rust" implementationClass="io.github.rustsupport.lang.RustQuoteHandler"/>
         <lineIndentProvider implementation="io.github.rustsupport.lang.RustLineIndentProvider"/>
         <enterHandlerDelegate implementation="io.github.rustsupport.lang.RustEnterBetweenBracketsHandler"/>
+        <!-- Enter in `///`, `//!` and inside the text of `//` continues the comment (by the lexer: no wait for the server) -->
+        <enterHandlerDelegate implementation="io.github.rustsupport.lang.RustCommentEnterHandler"/>
         <colorSettingsPage implementation="io.github.rustsupport.lang.RustColorSettingsPage"/>
         <applicationConfigurable parentId="language" instance="io.github.rustsupport.settings.RustSettingsConfigurable"
                                  id="io.github.rustsupport.settings" displayName="Rust"/>

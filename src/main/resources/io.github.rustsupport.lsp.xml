@@ -15,6 +15,14 @@
         <gotoDeclarationHandler implementation="io.github.rustsupport.lsp.RustAnalyzerGotoDeclarationHandler"/>
         <!-- the server in the status bar for as long as its process lives, with its memory and CPU next to the icon -->
         <statusBarWidgetFactory id="Rust.RustAnalyzer.Status" implementation="io.github.rustsupport.lsp.RustAnalyzerStatusWidgetFactory"/>
+
+        <!-- rust-analyzer extensions and its log (RustAnalyzerExtensions.kt, RustAnalyzerActions.kt, RustAnalyzerLog.kt) -->
+        <toolWindow id="rust-analyzer" anchor="bottom" doNotActivateOnStart="true" icon="/icons/rustToolWindow.svg"
+                    factoryClass="io.github.rustsupport.lsp.RustAnalyzerLogToolWindowFactory"/>
+        <!-- Enter after `{` of a one-line block and Join Lines by the server; any other case goes on to the handler of the IDE -->
+        <editorActionHandler action="EditorEnter" implementationClass="io.github.rustsupport.lsp.RustAnalyzerEnterHandler"/>
+        <editorActionHandler action="EditorJoinLines" implementationClass="io.github.rustsupport.lsp.RustAnalyzerJoinLinesHandler"/>
+        <!-- end of rust-analyzer extensions -->
     </extensions>
 
     <applicationListeners>
@@ -26,5 +34,41 @@
                 icon="AllIcons.Actions.Restart" description="Stop rust-analyzer and start it again with the current settings">
             <add-to-group group-id="Rust.ToolsMenu" anchor="first"/>
         </action>
+
+        <!-- rust-analyzer extensions and its log -->
+        <action id="Rust.ShowLog" class="io.github.rustsupport.lsp.ShowRustAnalyzerLogAction" text="Show rust-analyzer Log"
+                icon="AllIcons.Debugger.Console" description="The log of rust-analyzer: its stderr, its messages, starts and stops">
+            <add-to-group group-id="Rust.ToolsMenu" anchor="after" relative-to-action="Rust.RestartLanguageServer"/>
+        </action>
+        <group id="Rust.DebugMenu" text="Debug" popup="true">
+            <action id="Rust.ViewSyntaxTree" class="io.github.rustsupport.lsp.RustViewSyntaxTreeAction" text="View Syntax Tree"
+                    description="The syntax tree of the file, as rust-analyzer parses it"/>
+            <action id="Rust.ViewHir" class="io.github.rustsupport.lsp.RustViewHirAction" text="View HIR"
+                    description="The HIR of the function at the caret"/>
+            <action id="Rust.ViewMir" class="io.github.rustsupport.lsp.RustViewMirAction" text="View MIR"
+                    description="The MIR of the function at the caret"/>
+            <action id="Rust.ViewItemTree" class="io.github.rustsupport.lsp.RustViewItemTreeAction" text="View Item Tree"
+                    description="The items of the file, as rust-analyzer indexes them"/>
+            <action id="Rust.ViewCrateGraph" class="io.github.rustsupport.lsp.RustViewCrateGraphAction" text="View Crate Graph"
+                    description="The crates of the workspace and their dependencies, as Graphviz dot"/>
+            <action id="Rust.AnalyzerStatus" class="io.github.rustsupport.lsp.RustAnalyzerStatusAction" text="Show Analyzer Status"
+                    description="What rust-analyzer has loaded: workspaces, crates, memory"/>
+        </group>
+        <group id="Rust.LanguageServerActions">
+            <separator/>
+            <action id="Rust.ExpandMacro" class="io.github.rustsupport.lsp.RustExpandMacroAction" text="Expand Macro Recursively"
+                    description="Show what the macro call at the caret expands to (rust-analyzer)"/>
+            <action id="Rust.GoToParentModule" class="io.github.rustsupport.lsp.RustGoToParentModuleAction" text="Go to Parent Module"
+                    description="Go to the mod item that declares this file, or to Cargo.toml of the crate (rust-analyzer)"/>
+            <reference ref="Rust.DebugMenu"/>
+            <add-to-group group-id="Rust.ToolsMenu" anchor="after" relative-to-action="Rust.ShowLog"/>
+        </group>
+        <group id="Rust.EditorPopup">
+            <separator/>
+            <reference ref="Rust.ExpandMacro"/>
+            <reference ref="Rust.GoToParentModule"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </group>
+        <!-- end of rust-analyzer extensions -->
     </actions>
 </idea-plugin>

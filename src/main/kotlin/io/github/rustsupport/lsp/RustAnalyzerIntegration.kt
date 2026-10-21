@@ -49,12 +49,14 @@ import io.github.rustsupport.toolchain.RustToolchain
 import io.github.rustsupport.toolchain.RustToolchainInstaller
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.eclipse.lsp4j.ClientCapabilities
 import org.eclipse.lsp4j.ConfigurationItem
 import org.eclipse.lsp4j.InitializeResult
 import org.eclipse.lsp4j.ProgressParams
 import org.eclipse.lsp4j.WorkDoneProgressBegin
 import org.eclipse.lsp4j.WorkDoneProgressEnd
 import org.eclipse.lsp4j.WorkDoneProgressReport
+import org.eclipse.lsp4j.services.LanguageServer
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 
@@ -97,7 +99,8 @@ class RustAnalyzerIntegrationProvider : LspIntegrationProvider {
 }
 
 class RustAnalyzerDescriptor(project: Project) : ProjectWideLspClientDescriptor(project, "rust-analyzer") {
-    override fun isSupportedFile(file: VirtualFile): Boolean = RustAnalyzerIntegrationProvider.isRustFile(file)
+    // a file on disk only: the tabs of the plugin (a macro expansion, HIR) are Rust files in memory that the server knows nothing of
+    override fun isSupportedFile(file: VirtualFile): Boolean = file.isInLocalFileSystem && RustAnalyzerIntegrationProvider.isRustFile(file)
 
     override fun createCommandLine(): GeneralCommandLine {
         val exe = RustTool.RUST_ANALYZER.find() ?: throw ExecutionException("rust-analyzer is not found")
@@ -123,11 +126,26 @@ class RustAnalyzerDescriptor(project: Project) : ProjectWideLspClientDescriptor(
             }
         })
         state.started(process)
+        // the log window: stderr of the server, its start and its end
+        RustAnalyzerLog.getInstance(project).attach(handler, handler.commandLine)
     }
 
-    /** `$/progress` of the server goes to the status bar as well, on its way to the platform. */
-    override fun createLsp4jClient(handler: LspServerNotificationsHandler): Lsp4jClient =
-        super.createLsp4jClient(ProgressTrackingHandler(handler, RustAnalyzerServerState.getInstance(project)))
+    /**
+     * `$/progress` of the server goes to the status bar as well, on its way to the platform; its messages go to the log window
+     * ([LoggingNotificationsHandler]); `experimental/serverStatus` is taken by [RustAnalyzerLsp4jClient].
+     */
+    override fun createLsp4jClient(handler: LspServerNotificationsHandler): Lsp4jClient {
+        val log = RustAnalyzerLog.getInstance(project)
+        return RustAnalyzerLsp4jClient(LoggingNotificationsHandler(ProgressTrackingHandler(handler, RustAnalyzerServerState.getInstance(project)), log), log::serverStatus)
+    }
+
+    /** The requests of rust-analyzer beyond the protocol (expand macro, parent module, join lines, on enter, views) on the same connection. */
+    override val lsp4jServerClass: Class<out LanguageServer> = RustAnalyzerServer::class.java
+
+    /** `experimental/serverStatus` is sent only to a client that asks for it: the health of the server for the status widget. */
+    override val clientCapabilities: ClientCapabilities get() = super.clientCapabilities.apply {
+        experimental = RustAnalyzerCapabilities.withServerStatus(experimental)
+    }
 
     override val lspServerListener: LspServerListener = object : LspServerListener {
         override fun serverInitialized(params: InitializeResult) {

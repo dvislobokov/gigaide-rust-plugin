@@ -51,6 +51,7 @@ object RustAnalyzer {
         throw e
     } catch (e: Exception) {
         LOG.info("rust-analyzer request has failed: $e")
+        RustAnalyzerLog.getInstance(client.project).error("A request of navigation has failed: ${e.message ?: e.javaClass.simpleName}")
         null
     }
 
