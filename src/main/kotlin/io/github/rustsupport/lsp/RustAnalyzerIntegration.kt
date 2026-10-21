@@ -156,6 +156,9 @@ class RustAnalyzerDescriptor(project: Project) : ProjectWideLspClientDescriptor(
 
     override fun getLanguageId(file: VirtualFile): String = "rust"
 
+    /** The requests of rust-analyzer beyond the protocol, `experimental/runnables` among them ([RustAnalyzerServer]). */
+    override val lsp4jServerClass: Class<out LanguageServer> get() = RustAnalyzerServer::class.java
+
     override fun createInitializationOptions(): Any = RustAnalyzerOptions.build(RustSettings.getInstance())
 
     /** rust-analyzer asks for the section `rust-analyzer` after `workspace/didChangeConfiguration`. */

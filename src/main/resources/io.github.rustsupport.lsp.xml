@@ -25,6 +25,12 @@
         <!-- end of rust-analyzer extensions -->
     </extensions>
 
+    <!-- ===== Stage 3: runnables of rust-analyzer for the gutter and the Cargo configurations ===== -->
+    <extensions defaultExtensionNs="io.github.rustsupport">
+        <runnableSource implementation="io.github.rustsupport.lsp.RustAnalyzerRunnableSource"/>
+    </extensions>
+    <!-- ===== end of Stage 3 ===== -->
+
     <applicationListeners>
         <listener class="io.github.rustsupport.lsp.RustAnalyzerSettingsListener" topic="io.github.rustsupport.settings.RustSettingsListener"/>
     </applicationListeners>

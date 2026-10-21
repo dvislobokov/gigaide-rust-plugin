@@ -21,6 +21,13 @@
         <module name="io.github.rustsupport.lsp"/>
     </content>
 
+    <!-- ===== Stage 3: running with Cargo ===== -->
+    <extensionPoints>
+        <!-- the runnables of a file, from rust-analyzer in the content module io.github.rustsupport.lsp -->
+        <extensionPoint qualifiedName="io.github.rustsupport.runnableSource" interface="io.github.rustsupport.run.RustRunnableSource" dynamic="true"/>
+    </extensionPoints>
+    <!-- ===== end of Stage 3 ===== -->
+
     <extensions defaultExtensionNs="com.intellij">
         <notificationGroup id="Rust" displayType="BALLOON"/>
         <!-- target/ of every Cargo package out of the index and the search -->
@@ -45,6 +52,14 @@
         <colorSettingsPage implementation="io.github.rustsupport.lang.RustColorSettingsPage"/>
         <applicationConfigurable parentId="language" instance="io.github.rustsupport.settings.RustSettingsConfigurable"
                                  id="io.github.rustsupport.settings" displayName="Rust"/>
+        <!-- ===== Stage 3: running with Cargo (io.github.rustsupport.run) ===== -->
+        <configurationType implementation="io.github.rustsupport.run.CargoConfigurationType"/>
+        <runConfigurationProducer implementation="io.github.rustsupport.run.CargoRunConfigurationProducer"/>
+        <!-- the runnables of rust-analyzer (experimental/runnables), else fn main of a binary -->
+        <runLineMarkerContributor language="Rust" implementationClass="io.github.rustsupport.run.CargoRunLineMarkerContributor"/>
+        <!-- file.rs:10:5 of the compiler, of panics and backtraces as links in every console -->
+        <consoleFilterProvider implementation="io.github.rustsupport.run.CargoConsoleFilterProvider"/>
+        <!-- ===== end of Stage 3 ===== -->
     </extensions>
 
     <actions>
@@ -54,10 +69,28 @@
                     icon="AllIcons.Actions.Checked" description="Look at cargo, rustc, rust-analyzer, rustfmt, clippy, rust-src and the MSVC linker"/>
             <action id="Rust.InstallComponents" class="io.github.rustsupport.settings.InstallRustComponentsAction" text="Install or Update Components"
                     icon="AllIcons.Actions.Download" description="rustup component add rust-analyzer rust-src rustfmt clippy"/>
+            <!-- ===== Stage 3: cargo commands of the project ===== -->
+            <separator/>
+            <action id="Rust.CargoBuild" class="io.github.rustsupport.run.CargoBuildAction" text="Cargo Build"
+                    icon="AllIcons.Actions.Compile" description="cargo build of the project, in a Run console"/>
+            <action id="Rust.CargoCheck" class="io.github.rustsupport.run.CargoCheckAction" text="Cargo Check"
+                    description="cargo check of the project, in a Run console"/>
+            <action id="Rust.CargoClippy" class="io.github.rustsupport.run.CargoClippyAction" text="Cargo Clippy"
+                    description="cargo clippy of the project, in a Run console"/>
+            <!-- ===== end of Stage 3 ===== -->
             <separator/>
             <action id="Rust.Settings" class="io.github.rustsupport.settings.OpenRustSettingsAction" text="Settings..."
                     icon="AllIcons.General.Settings" description="Settings | Languages &amp; Frameworks | Rust"/>
         </group>
+        <!-- ===== Stage 3: the same cargo commands in the Build menu ===== -->
+        <group id="Rust.CargoBuildMenu">
+            <add-to-group group-id="BuildMenu" anchor="last"/>
+            <separator/>
+            <reference ref="Rust.CargoBuild"/>
+            <reference ref="Rust.CargoCheck"/>
+            <reference ref="Rust.CargoClippy"/>
+        </group>
+        <!-- ===== end of Stage 3 ===== -->
     </actions>
 
     <!-- ===== Debugger (package io.github.rustsupport.debugger): the plugin's own DAP client to CodeLLDB on the XDebugger API ===== -->
