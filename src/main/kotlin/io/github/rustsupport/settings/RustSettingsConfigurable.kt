@@ -58,6 +58,12 @@ class RustSettingsConfigurable : BoundConfigurable("Rust") {
                     .comment("rust-analyzer default: 128")
             }
         }
+        group("Monitor") {
+            row {
+                checkBox("Open Rust Monitor when a Cargo run starts").bindSelected(settings::openMonitorOnRun)
+                    .comment("CPU, memory and threads of the program cargo runs, in the Rust Monitor tool window")
+            }
+        }
     }.also { refreshDetected() }
 
     override fun apply() {

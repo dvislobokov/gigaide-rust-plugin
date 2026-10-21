@@ -24,6 +24,8 @@ class RustSettings : PersistentStateComponent<RustSettings> {
     var primeCaches: Boolean = false
     /** Parse trees kept in memory (`lru.capacity`); rust-analyzer's default is 128. */
     var lruCapacity: Int = 64
+    /** The Rust Monitor tool window shows itself when a Cargo run starts. */
+    var openMonitorOnRun: Boolean = false
 
     override fun getState(): RustSettings = this
     override fun loadState(state: RustSettings) = XmlSerializerUtil.copyBean(state, this)
