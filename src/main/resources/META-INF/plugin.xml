@@ -110,4 +110,22 @@
         </action>
     </actions>
     <!-- ===== end of Debugger ===== -->
+
+    <!-- ===== Rust Monitor ===== -->
+    <!-- CPU, memory, threads and processes of the program a Cargo run started (package io.github.rustsupport.monitor) -->
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Rust Monitor" anchor="right" icon="/icons/rustMonitor.svg" doNotActivateOnStart="true"
+                    factoryClass="io.github.rustsupport.monitor.RustMonitorToolWindowFactory"/>
+    </extensions>
+    <actions>
+        <action id="Rust.OpenMonitor" class="io.github.rustsupport.monitor.OpenRustMonitorAction" text="Open Monitor" icon="/icons/rustMonitor.svg"
+                description="CPU, memory and threads of the program a Cargo run started">
+            <add-to-group group-id="Rust.ToolsMenu" anchor="before" relative-to-action="Rust.Settings"/>
+            <add-to-group group-id="ConsoleEditorPopupMenu" anchor="last"/>
+        </action>
+    </actions>
+    <projectListeners>
+        <listener class="io.github.rustsupport.monitor.RustProcessStartListener" topic="com.intellij.execution.ExecutionListener"/>
+    </projectListeners>
+    <!-- end of Rust Monitor -->
 </idea-plugin>
