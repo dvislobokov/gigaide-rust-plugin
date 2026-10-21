@@ -53,4 +53,22 @@
                     icon="AllIcons.General.Settings" description="Settings | Languages &amp; Frameworks | Rust"/>
         </group>
     </actions>
+
+    <!-- ===== Debugger (package io.github.rustsupport.debugger): the plugin's own DAP client to CodeLLDB on the XDebugger API ===== -->
+    <!-- GIGA IDE has no intellij.platform.dap; CodeLLDB is found (settings, VS Code / Cursor / VSCodium extension, downloads) or offered -->
+    <extensions defaultExtensionNs="com.intellij">
+        <programRunner implementation="io.github.rustsupport.debugger.RustDebugRunner"/>
+        <xdebugger.breakpointType implementation="io.github.rustsupport.debugger.RustLineBreakpointType"/>
+        <xdebugger.breakpointType implementation="io.github.rustsupport.debugger.RustPanicBreakpointType"/>
+        <applicationConfigurable parentId="io.github.rustsupport.settings" instance="io.github.rustsupport.debugger.RustDebuggerConfigurable"
+                                 id="io.github.rustsupport.settings.debugger" displayName="Debugger"/>
+        <registryKey key="rust.debugger.protocol.trace" defaultValue="false"
+                     description="Write every DAP message of the Rust debug sessions into the log directory, rust-debugger/"/>
+    </extensions>
+    <actions>
+        <action id="Rust.DownloadCodeLldb" class="io.github.rustsupport.debugger.DownloadCodeLldbAction">
+            <add-to-group group-id="Rust.ToolsMenu" anchor="last"/>
+        </action>
+    </actions>
+    <!-- ===== end of Debugger ===== -->
 </idea-plugin>
