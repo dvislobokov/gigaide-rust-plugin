@@ -148,4 +148,20 @@
         </action>
     </actions>
     <!-- end of Templates, rustfmt on save, Explain Error -->
+    <!-- ===== Cargo tool window and Cargo.toml ===== -->
+    <!-- the workspaces of cargo metadata, targets, features, dependencies (package io.github.rustsupport.cargo) -->
+    <!-- Cargo.toml completion, navigation and newer versions on the PSI of the bundled TOML plugin, when it is there (cargo.toml) -->
+    <depends optional="true" config-file="rust-toml.xml">org.toml.lang</depends>
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Cargo" anchor="right" icon="/icons/cargo.svg" doNotActivateOnStart="true"
+                    factoryClass="io.github.rustsupport.cargo.CargoToolWindowFactory"/>
+    </extensions>
+    <actions>
+        <action id="Rust.CheckDependencyUpdates" class="io.github.rustsupport.cargo.CheckDependencyUpdatesAction" text="Check Dependency Updates"
+                icon="AllIcons.Actions.Find"
+                description="cargo update --dry-run --verbose: the newest versions of the dependencies (network through cargo, its proxy and mirrors)">
+            <add-to-group group-id="Rust.ToolsMenu" anchor="before" relative-to-action="Rust.Settings"/>
+        </action>
+    </actions>
+    <!-- end of Cargo tool window and Cargo.toml -->
 </idea-plugin>

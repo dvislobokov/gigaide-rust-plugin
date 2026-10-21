@@ -1,0 +1,2 @@
+[dependencies]
+rand = "0.8" # highlighted: 0.10.2 is the newest version, with a quick fix to update

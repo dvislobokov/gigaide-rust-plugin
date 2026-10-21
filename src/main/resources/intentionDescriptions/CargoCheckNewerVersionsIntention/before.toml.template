@@ -1,0 +1,2 @@
+[dependencies]
+<spot>rand</spot> = "0.8"

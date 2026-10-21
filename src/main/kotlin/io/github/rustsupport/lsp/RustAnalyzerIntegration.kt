@@ -40,6 +40,7 @@ import com.intellij.platform.lsp.api.customization.LspSemanticTokensCustomizer
 import com.intellij.platform.lsp.api.customization.LspSemanticTokensSupport
 import com.intellij.platform.lsp.api.lsWidget.LspClientWidgetItem
 import com.intellij.psi.PsiFile
+import io.github.rustsupport.cargo.CargoFeatureSettings
 import io.github.rustsupport.lang.RustColors
 import io.github.rustsupport.lang.RustFile
 import io.github.rustsupport.lang.RustFileType
@@ -158,11 +159,11 @@ class RustAnalyzerDescriptor(project: Project) : ProjectWideLspClientDescriptor(
 
     override fun getLanguageId(file: VirtualFile): String = "rust"
 
-    override fun createInitializationOptions(): Any = RustAnalyzerOptions.build(RustSettings.getInstance())
+    override fun createInitializationOptions(): Any = RustAnalyzerOptions.build(RustSettings.getInstance(), CargoFeatureSettings.getInstance(project).rustAnalyzerFeatures())
 
     /** rust-analyzer asks for the section `rust-analyzer` after `workspace/didChangeConfiguration`. */
     override fun getWorkspaceConfiguration(item: ConfigurationItem): Any? =
-        if (item.section == "rust-analyzer") RustAnalyzerOptions.build(RustSettings.getInstance()) else null
+        if (item.section == "rust-analyzer") RustAnalyzerOptions.build(RustSettings.getInstance(), CargoFeatureSettings.getInstance(project).rustAnalyzerFeatures()) else null
 
     /**
      * A Rust file has a language of its own (for Ctrl + mouse, braces, indents): the platform then asks a server for colours, highlighted
@@ -247,10 +248,14 @@ private class ProgressTrackingHandler(
 
 /** The settings of rust-analyzer (https://rust-analyzer.github.io/book/configuration) the settings page has switches for. */
 object RustAnalyzerOptions {
-    fun build(settings: RustSettings): Map<String, Any> = mapOf(
+    /** [features]: `cargo.features`, the features checked in the Cargo tool window (`package/feature`). */
+    fun build(settings: RustSettings, features: List<String> = emptyList()): Map<String, Any> = mapOf(
         "check" to mapOf("command" to settings.checkCommand),
         "checkOnSave" to true,
-        "cargo" to mapOf("buildScripts" to mapOf("enable" to settings.buildScripts)),
+        "cargo" to buildMap<String, Any> {
+            put("buildScripts", mapOf("enable" to settings.buildScripts))
+            if (features.isNotEmpty()) put("features", features)
+        },
         "procMacro" to mapOf("enable" to settings.procMacros),
         // indexing every crate of the dependency graph at start: fast first completion, at the price of memory for crates never opened
         "cachePriming" to mapOf("enable" to settings.primeCaches),
