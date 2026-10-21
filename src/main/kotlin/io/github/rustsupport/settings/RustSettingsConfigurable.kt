@@ -14,11 +14,14 @@ import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.builder.toNullableProperty
 import io.github.rustsupport.toolchain.RustToolchainCheck
+import javax.swing.JCheckBox
 
 /** Settings | Languages & Frameworks | Rust. Apply restarts rust-analyzer. */
 class RustSettingsConfigurable : BoundConfigurable("Rust") {
     private val settings = RustSettings.getInstance()
     private val detected = JBLabel("Looking for the toolchain...")
+    /** Read and set by the row of Settings | Tools | Actions on Save ([io.github.rustsupport.toolchain.RustfmtOnSaveInfoProvider]). */
+    lateinit var rustfmtOnSave: JCheckBox
 
     override fun createPanel(): DialogPanel = panel {
         group("Toolchain") {
@@ -58,6 +61,13 @@ class RustSettingsConfigurable : BoundConfigurable("Rust") {
                     .comment("rust-analyzer default: 128")
             }
         }
+        group("Formatting") {
+            row {
+                rustfmtOnSave = checkBox("Reformat code with rustfmt on save").bindSelected(settings::rustfmtOnSave)
+                    .comment("Rust files of the project; the edition from Cargo.toml, rustfmt.toml from the directory of the file up. Also in Settings | Tools | Actions on Save")
+                    .component
+            }
+        }
         group("Monitor") {
             row {
                 checkBox("Open Rust Monitor when a Cargo run starts").bindSelected(settings::openMonitorOnRun)
@@ -71,6 +81,11 @@ class RustSettingsConfigurable : BoundConfigurable("Rust") {
         val before = settings.serverState()
         super.apply()
         if (settings.serverState() != before) RustSettings.fireChanged()
+    }
+
+    companion object {
+        /** The id of the page in plugin.xml. */
+        const val ID = "io.github.rustsupport.settings"
     }
 
     /** The toolchain check (the tools, where they come from, whether they run, rust-src, MSVC), run off the EDT. */

@@ -128,4 +128,24 @@
         <listener class="io.github.rustsupport.monitor.RustProcessStartListener" topic="com.intellij.execution.ExecutionListener"/>
     </projectListeners>
     <!-- end of Rust Monitor -->
+
+    <!-- ===== Templates, rustfmt on save, Explain Error ===== -->
+    <!-- live and postfix templates by the tokens (io.github.rustsupport.lang), rustfmt on save and rustc explain (io.github.rustsupport.toolchain);
+         "Explain E0308" on the diagnostics of rust-analyzer is RustAnalyzerDiagnosticsSupport of the content module -->
+    <extensions defaultExtensionNs="com.intellij">
+        <liveTemplateContext contextId="RUST" implementation="io.github.rustsupport.lang.RustTemplateContext"/>
+        <liveTemplateContext contextId="RUST_ITEM" baseContextId="RUST" implementation="io.github.rustsupport.lang.RustItemTemplateContext"/>
+        <liveTemplateContext contextId="RUST_CODE" baseContextId="RUST" implementation="io.github.rustsupport.lang.RustCodeTemplateContext"/>
+        <defaultLiveTemplates file="/liveTemplates/Rust.xml"/>
+        <codeInsight.template.postfixTemplateProvider language="Rust" implementationClass="io.github.rustsupport.lang.RustPostfixTemplateProvider"/>
+        <actionOnSave implementation="io.github.rustsupport.toolchain.RustfmtOnSave"/>
+        <actionOnSaveInfoProvider implementation="io.github.rustsupport.toolchain.RustfmtOnSaveInfoProvider"/>
+    </extensions>
+    <actions>
+        <action id="Rust.ExplainErrorCode" class="io.github.rustsupport.toolchain.ExplainRustErrorCodeAction" text="Explain Rust Error Code..."
+                icon="AllIcons.Actions.Help" description="rustc --explain of an error code such as E0308, in an editor tab">
+            <add-to-group group-id="Rust.ToolsMenu" anchor="before" relative-to-action="Rust.Settings"/>
+        </action>
+    </actions>
+    <!-- end of Templates, rustfmt on save, Explain Error -->
 </idea-plugin>
