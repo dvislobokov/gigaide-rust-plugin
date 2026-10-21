@@ -1,0 +1,30 @@
+<!-- A content module of the plugin: everything that needs the LSP client of the platform lives here, so where it is absent
+     only this part is switched off and the rest of the plugin loads. Classes: io.github.rustsupport.lsp. -->
+<idea-plugin package="io.github.rustsupport.lsp">
+    <dependencies>
+        <module name="intellij.platform.lsp"/>
+        <!-- the extension point is declared by the implementation -->
+        <module name="intellij.platform.lsp.impl"/>
+    </dependencies>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <platform.lsp.integrationProvider implementation="io.github.rustsupport.lsp.RustAnalyzerIntegrationProvider"/>
+        <!-- rust-analyzer for a Rust project as soon as it is opened, not at the first Rust file -->
+        <postStartupActivity implementation="io.github.rustsupport.lsp.RustAnalyzerStartupActivity"/>
+        <!-- a link under Ctrl + mouse and Go to Declaration, to the tokens of the target file -->
+        <gotoDeclarationHandler implementation="io.github.rustsupport.lsp.RustAnalyzerGotoDeclarationHandler"/>
+        <!-- the server in the status bar for as long as its process lives, with its memory and CPU next to the icon -->
+        <statusBarWidgetFactory id="Rust.RustAnalyzer.Status" implementation="io.github.rustsupport.lsp.RustAnalyzerStatusWidgetFactory"/>
+    </extensions>
+
+    <applicationListeners>
+        <listener class="io.github.rustsupport.lsp.RustAnalyzerSettingsListener" topic="io.github.rustsupport.settings.RustSettingsListener"/>
+    </applicationListeners>
+
+    <actions>
+        <action id="Rust.RestartLanguageServer" class="io.github.rustsupport.lsp.RestartRustAnalyzerAction" text="Restart rust-analyzer"
+                icon="AllIcons.Actions.Restart" description="Stop rust-analyzer and start it again with the current settings">
+            <add-to-group group-id="Rust.ToolsMenu" anchor="first"/>
+        </action>
+    </actions>
+</idea-plugin>

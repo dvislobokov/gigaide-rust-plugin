@@ -1,0 +1,9 @@
+.gradle/
+.idea/
+.intellijPlatform/
+.kotlin/
+build/
+out/
+*.iml
+playground/target/
+.claude/settings.local.json

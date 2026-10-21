@@ -1,0 +1,56 @@
+<idea-plugin>
+    <id>io.github.rustsupport</id>
+    <name>Rust Support</name>
+    <vendor>dvislobokov</vendor>
+
+    <description><![CDATA[
+        Rust support for IntelliJ-based IDEs that have none, built on the tools of the Rust ecosystem:
+        <ul>
+            <li><b>rust-analyzer</b> for errors, completion, navigation, refactorings, inlay hints and semantic highlighting (the LSP client of the platform)</li>
+            <li>syntax highlighting by the Rust grammar the IDE bundles (TextMate)</li>
+            <li><b>rustup</b>: missing components installed from the IDE</li>
+        </ul>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <!-- RustRover, or the JetBrains Rust plugin: nothing this plugin could add -->
+    <incompatible-with>com.jetbrains.rust</incompatible-with>
+
+    <!-- optional parts: a module is loaded only where its dependencies are (see the descriptor of the module next to META-INF) -->
+    <content>
+        <module name="io.github.rustsupport.lsp"/>
+    </content>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="Rust" displayType="BALLOON"/>
+        <!-- target/ of every Cargo package out of the index and the search -->
+        <directoryIndexExcludePolicy implementation="io.github.rustsupport.toolchain.RustExcludePolicy"/>
+        <!-- the default JDK the IDE gives a directory it opens, off a Rust project without Java -->
+        <postStartupActivity implementation="io.github.rustsupport.toolchain.RustProjectSdkCleaner"/>
+        <fileIconProvider implementation="io.github.rustsupport.RustFileIconProvider" order="first"/>
+
+        <!-- Rust as a language of the plugin: a lexer without a grammar (structure, errors and resolve are rust-analyzer's) -->
+        <fileType name="Rust" implementationClass="io.github.rustsupport.lang.RustFileType" fieldName="INSTANCE" language="Rust" extensions="rs"/>
+        <lang.parserDefinition language="Rust" implementationClass="io.github.rustsupport.lang.RustParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="Rust" implementationClass="io.github.rustsupport.lang.RustSyntaxHighlighterFactory"/>
+        <lang.braceMatcher language="Rust" implementationClass="io.github.rustsupport.lang.RustBraceMatcher"/>
+        <lang.commenter language="Rust" implementationClass="io.github.rustsupport.lang.RustCommenter"/>
+        <lang.quoteHandler language="Rust" implementationClass="io.github.rustsupport.lang.RustQuoteHandler"/>
+        <lineIndentProvider implementation="io.github.rustsupport.lang.RustLineIndentProvider"/>
+        <enterHandlerDelegate implementation="io.github.rustsupport.lang.RustEnterBetweenBracketsHandler"/>
+        <colorSettingsPage implementation="io.github.rustsupport.lang.RustColorSettingsPage"/>
+        <applicationConfigurable parentId="language" instance="io.github.rustsupport.settings.RustSettingsConfigurable"
+                                 id="io.github.rustsupport.settings" displayName="Rust"/>
+    </extensions>
+
+    <actions>
+        <group id="Rust.ToolsMenu" text="Rust" popup="true" icon="/icons/rustToolWindow.svg">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <action id="Rust.InstallComponents" class="io.github.rustsupport.settings.InstallRustComponentsAction" text="Install or Update Components"
+                    icon="AllIcons.Actions.Download" description="rustup component add rust-analyzer rust-src rustfmt clippy"/>
+            <separator/>
+            <action id="Rust.Settings" class="io.github.rustsupport.settings.OpenRustSettingsAction" text="Settings..."
+                    icon="AllIcons.General.Settings" description="Settings | Languages &amp; Frameworks | Rust"/>
+        </group>
+    </actions>
+</idea-plugin>
