@@ -20,8 +20,8 @@ class RustDebugLogicTest {
     @Test
     fun `adapter settings load the Rust formatters of the sysroot`() {
         assertEquals(
-            """{"sourceLanguages":["rust"],"evaluateForHovers":true,"scriptConfig":{"lang":{"rust":{"sysroot":"C:\\r"}}}}""",
-            DapConnection.GSON.toJson(CodeLldbLaunch.adapterSettings("C:\\r")),
+            """{"sourceLanguages":["rust"],"evaluateForHovers":true,"scriptConfig":{"lang":{"rust":{"sysroot":"C:/Users/r"}}}}""",
+            DapConnection.GSON.toJson(CodeLldbLaunch.adapterSettings("C:\\Users\\r")),
         )
         assertEquals("""{"sourceLanguages":["rust"],"evaluateForHovers":true}""", DapConnection.GSON.toJson(CodeLldbLaunch.adapterSettings(null)))
     }

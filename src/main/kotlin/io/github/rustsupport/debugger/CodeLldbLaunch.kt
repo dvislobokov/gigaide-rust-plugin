@@ -25,11 +25,13 @@ object CodeLldbLaunch {
     /**
      * `--settings` of the adapter. The sysroot is given (`scriptConfig.lang.rust.sysroot`, read by `rust.py`) because the adapter would
      * run `rustc --print=sysroot` itself with its own PATH, where rustc may be missing (seen with a probe: "Could not locate Rust toolchain").
+     * Forward slashes only: the adapter pastes these settings into Python source as a string literal, which turns `\\` into `\`, and
+     * `json.loads` then fails on `\U` of `C:\Users` (seen live: "Invalid \escape", and none of the settings applied).
      */
     fun adapterSettings(sysroot: String?): JsonObject = json(
         "sourceLanguages" to listOf("rust"),
         "evaluateForHovers" to true,
-        "scriptConfig" to sysroot?.let { mapOf("lang" to mapOf("rust" to mapOf("sysroot" to it))) },
+        "scriptConfig" to sysroot?.let { mapOf("lang" to mapOf("rust" to mapOf("sysroot" to it.replace('\\', '/')))) },
     )
 
     /**
