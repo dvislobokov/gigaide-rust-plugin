@@ -17,7 +17,9 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.util.elementType
 import io.github.rustsupport.lang.RustFile
 import io.github.rustsupport.lang.RustTokenTypes
+import org.eclipse.lsp4j.DeclarationParams
 import org.eclipse.lsp4j.DefinitionParams
+import org.eclipse.lsp4j.ImplementationParams
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.LocationLink
 import org.eclipse.lsp4j.Position
@@ -43,6 +45,14 @@ object RustAnalyzer {
 
     fun definition(client: LspClient, file: VirtualFile, position: Position, timeoutMs: Int): List<Place> =
         locations(client, request(client, timeoutMs) { it.textDocumentService.definition(DefinitionParams(client.getDocumentIdentifier(file), position)) })
+
+    /** The impl blocks of a trait or a type, the items of the impls that define a trait item (seen live with 1.99.1). */
+    fun implementation(client: LspClient, file: VirtualFile, position: Position, timeoutMs: Int): List<Place> =
+        locations(client, request(client, timeoutMs) { it.textDocumentService.implementation(ImplementationParams(client.getDocumentIdentifier(file), position)) })
+
+    /** For an item of a trait impl: the item of the trait it implements (seen live with 1.99.1); nothing for an inherent one. */
+    fun declaration(client: LspClient, file: VirtualFile, position: Position, timeoutMs: Int): List<Place> =
+        locations(client, request(client, timeoutMs) { it.textDocumentService.declaration(DeclarationParams(client.getDocumentIdentifier(file), position)) })
 
     /** The answer, or nothing: a server that is busy, gone or answers with an error must not break navigation of the IDE. */
     private fun <T> request(client: LspClient, timeoutMs: Int, call: (LanguageServer) -> CompletableFuture<T>): T? = try {

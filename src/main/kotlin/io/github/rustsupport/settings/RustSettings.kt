@@ -20,6 +20,8 @@ class RustSettings : PersistentStateComponent<RustSettings> {
     var procMacros: Boolean = true
     var buildScripts: Boolean = true
     var inlayHints: Boolean = true
+    /** Usages and implementations above the items: the code lenses of rust-analyzer (`lens.*`). */
+    var codeLens: Boolean = true
     /** rust-analyzer analyses every crate of the graph at start (`cachePriming.enable`); off, it does so on demand and keeps less in memory. */
     var primeCaches: Boolean = false
     /** Parse trees kept in memory (`lru.capacity`); rust-analyzer's default is 128. */
@@ -31,7 +33,7 @@ class RustSettings : PersistentStateComponent<RustSettings> {
 
     /** What rust-analyzer is started with or told: a change of these restarts it. */
     fun serverState(): List<Any> =
-        listOf(languageServerEnabled, rustAnalyzerPath, cargoPath, checkCommand, procMacros, buildScripts, inlayHints, primeCaches, lruCapacity)
+        listOf(languageServerEnabled, rustAnalyzerPath, cargoPath, checkCommand, procMacros, buildScripts, inlayHints, primeCaches, lruCapacity, codeLens)
 
     override fun getState(): RustSettings = this
     override fun loadState(state: RustSettings) = XmlSerializerUtil.copyBean(state, this)

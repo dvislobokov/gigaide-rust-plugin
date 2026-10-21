@@ -25,6 +25,7 @@ import com.intellij.platform.lsp.api.LspIntegrationProvider
 import com.intellij.platform.lsp.api.LspServerListener
 import com.intellij.platform.lsp.api.LspServerNotificationsHandler
 import com.intellij.platform.lsp.api.ProjectWideLspClientDescriptor
+import com.intellij.platform.lsp.api.customization.LspCodeLensCustomizer
 import com.intellij.platform.lsp.api.customization.LspCustomization
 import com.intellij.platform.lsp.api.customization.LspDiagnosticsCustomizer
 import com.intellij.platform.lsp.api.customization.LspDocumentHighlightsCustomizer
@@ -145,7 +146,7 @@ class RustAnalyzerDescriptor(project: Project) : ProjectWideLspClientDescriptor(
 
     /** `experimental/serverStatus` is sent only to a client that asks for it: the health of the server for the status widget. */
     override val clientCapabilities: ClientCapabilities get() = super.clientCapabilities.apply {
-        experimental = RustAnalyzerCapabilities.withServerStatus(experimental)
+        experimental = RustAnalyzerCapabilities.withLensCommands(RustAnalyzerCapabilities.withServerStatus(experimental))
     }
 
     override val lspServerListener: LspServerListener = object : LspServerListener {
@@ -188,6 +189,9 @@ class RustAnalyzerDescriptor(project: Project) : ProjectWideLspClientDescriptor(
 
         /** "Explain E0308" on the errors with a code of rustc ([RustAnalyzerDiagnosticsSupport]). */
         override val diagnosticsCustomizer: LspDiagnosticsCustomizer = RustAnalyzerDiagnosticsSupport()
+
+        /** Usages and implementations above the items, a click opens them ([RustAnalyzerLenses]). */
+        override val codeLensCustomizer: LspCodeLensCustomizer = RustAnalyzerLenses()
 
         /** Reformat Code is rustfmt through rust-analyzer: the IDE has no formatter of Rust. */
         override val formattingCustomizer: LspFormattingCustomizer = object : LspFormattingSupport() {
@@ -257,6 +261,15 @@ object RustAnalyzerOptions {
             "typeHints" to mapOf("enable" to settings.inlayHints),
             "parameterHints" to mapOf("enable" to settings.inlayHints),
             "chainingHints" to mapOf("enable" to settings.inlayHints),
+        ),
+        // usages and implementations above the items; run and debug are the gutter's (runnables), not lenses
+        "lens" to mapOf(
+            "enable" to settings.codeLens,
+            "references" to listOf("adt", "trait", "method", "enumVariant").associateWith { mapOf("enable" to settings.codeLens) },
+            "implementations" to mapOf("enable" to settings.codeLens),
+            "run" to mapOf("enable" to false),
+            "debug" to mapOf("enable" to false),
+            "updateTest" to mapOf("enable" to false),
         ),
     )
 }

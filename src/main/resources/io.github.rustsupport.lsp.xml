@@ -77,4 +77,21 @@
         </group>
         <!-- end of rust-analyzer extensions -->
     </actions>
+
+    <!-- ===== Gutter markers and Generate ===== -->
+    <!-- implemented / implementing icons, Go to Implementation, code lenses of rust-analyzer (RustAnalyzerMarkers.kt, RustAnalyzerLenses.kt),
+         the assists that generate code in Alt+Insert (RustAnalyzerGenerate.kt) -->
+    <extensions defaultExtensionNs="com.intellij">
+        <codeInsight.lineMarkerProvider language="Rust" implementationClass="io.github.rustsupport.lsp.RustImplLineMarkerProvider"/>
+        <!-- Ctrl+Alt+B in a Rust file: the action of the platform finds no source in a file of tokens -->
+        <actionPromoter implementation="io.github.rustsupport.lsp.RustGotoImplementationPromoter"/>
+    </extensions>
+    <actions>
+        <action id="Rust.GotoImplementation" class="io.github.rustsupport.lsp.RustGotoImplementationAction" text="Go to Implementation (rust-analyzer)"
+                use-shortcut-of="GotoImplementation" description="The impls of the trait, trait item or type at the caret (rust-analyzer)"/>
+        <group id="Rust.Generate" class="io.github.rustsupport.lsp.RustGenerateGroup">
+            <add-to-group group-id="GenerateGroup" anchor="last"/>
+        </group>
+    </actions>
+    <!-- end of Gutter markers and Generate -->
 </idea-plugin>
