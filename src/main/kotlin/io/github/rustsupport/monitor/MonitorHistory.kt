@@ -18,6 +18,8 @@ class MonitorSample(
     /** When the program started, 0 when unknown: the uptime of the header. */
     val programStartMillis: Long,
     val wholeTree: Boolean,
+    /** Stopped at a breakpoint or a step of the debugger: its CPU is not the program's to judge. */
+    val paused: Boolean = false,
 )
 
 /** The last [capacity] samples (ten minutes at one a second) and the peak of the working set over the whole session. */
@@ -69,6 +71,15 @@ object MonitorCsv {
 }
 
 object MonitorFormats {
+    /** The line under the header: what is measured, and for a debug session whether the program runs or is suspended. */
+    fun status(name: String, debug: Boolean, sample: MonitorSample): String = when {
+        debug && sample.wholeTree -> "$name: starting under the debugger, the whole tree is measured"
+        debug && sample.paused -> "$name: suspended in the debugger"
+        debug -> "$name: running under the debugger, the program and its children"
+        sample.wholeTree -> "$name: cargo is building, the whole tree is measured"
+        else -> "$name: the program and its children"
+    }
+
     /** `0:42`, `12:05`, `1:02:03`. */
     fun uptime(duration: Duration): String {
         val seconds = duration.seconds.coerceAtLeast(0)

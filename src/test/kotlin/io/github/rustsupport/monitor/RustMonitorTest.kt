@@ -75,6 +75,28 @@ class RustProcessTreeTest {
         assertEquals("cargo", RustProcessTree.executableName("C:\\x\\Cargo.EXE"))
         assertEquals("rustc", RustProcessTree.executableName("/usr/bin/rustc"))
     }
+
+    @Test fun `under CodeLLDB the program is the debuggee, not the adapter or lldb helpers`() {
+        val entries = listOf(
+            p(10, null, "C:\\u\\codelldb\\adapter\\codelldb.exe"),
+            p(11, 10, "conhost.exe"),
+            p(12, 10, "lldb-argdumper.exe", start = 5),
+            p(13, 10, "C:\\komodo\\target\\debug\\core.exe", start = 7),
+            p(14, 13, "conhost.exe"),
+            p(15, 13, "git.exe"),
+        )
+        val picked = RustProcessTree.pick(10, entries)
+        assertEquals(13L, picked.program?.pid)
+        assertEquals(listOf(13L, 15L), picked.pids)
+    }
+
+    @Test fun `a program the debugger named is measured with its children`() {
+        val entries = listOf(p(13, null, "core.exe"), p(14, 13, "conhost.exe"), p(15, 13, "worker.exe"))
+        val picked = RustProcessTree.withChildren(13, entries)
+        assertEquals(13L, picked.program?.pid)
+        assertEquals(listOf(13L, 15L), picked.pids)
+        assertTrue(RustProcessTree.withChildren(99, entries).isWholeTree)
+    }
 }
 
 class MonitorHistoryTest {
@@ -106,5 +128,13 @@ class MonitorHistoryTest {
         assertEquals("12:05", MonitorFormats.uptime(Duration.ofSeconds(725)))
         assertEquals("1:02:03", MonitorFormats.uptime(Duration.ofSeconds(3723)))
         assertEquals("0:00", MonitorFormats.uptime(Duration.ofSeconds(-5)))
+    }
+
+    @Test fun `status lines of runs and debug sessions`() {
+        fun sample(wholeTree: Boolean, paused: Boolean = false) = MonitorSample(0, 1, "core", 0.0, 0, 0, null, 1, 0, wholeTree, paused)
+        assertEquals("core: suspended in the debugger", MonitorFormats.status("core", true, sample(false, paused = true)))
+        assertEquals("core: running under the debugger, the program and its children", MonitorFormats.status("core", true, sample(false)))
+        assertEquals("core: starting under the debugger, the whole tree is measured", MonitorFormats.status("core", true, sample(true)))
+        assertEquals("core: cargo is building, the whole tree is measured", MonitorFormats.status("core", false, sample(true)))
     }
 }

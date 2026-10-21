@@ -19,6 +19,8 @@ object RustProcessTree {
         "cargo", "rustc", "rustup", "rustdoc", "clippy-driver", "sccache", "rustc_wrapper",
         // linkers and the compilers build scripts call (cc crate)
         "link", "lld", "lld-link", "rust-lld", "ld", "ld.lld", "cc", "c++", "gcc", "g++", "clang", "clang++", "cl", "mspdbsrv", "vctip",
+        // the debugger: CodeLLDB starts the program, LLDB's helpers are not it
+        "codelldb", "lldb", "lldb-server", "lldb-argdumper", "debugserver",
     )
 
     /** `C:\x\cargo.exe` → `cargo`; `/usr/bin/rustc` → `rustc`. */
@@ -35,7 +37,14 @@ object RustProcessTree {
     }
 
     /** What starts the program: cargo, its rustup proxy, a cargo subcommand. Not rustc or a build script: what they start is the build. */
-    fun isLauncher(entry: ProcessEntry): Boolean = executableName(entry.name).let { it == "cargo" || it == "rustup" || it.startsWith("cargo-") }
+    fun isLauncher(entry: ProcessEntry): Boolean =
+        executableName(entry.name).let { it == "cargo" || it == "rustup" || it.startsWith("cargo-") || it == "codelldb" || it == "lldb-server" || it == "debugserver" }
+
+    /** A program known by its pid (the debugger told it): it and its children, not the console host. */
+    fun withChildren(programPid: Long, entries: List<ProcessEntry>): MonitoredProcesses {
+        val program = entries.firstOrNull { it.pid == programPid } ?: return MonitoredProcesses(null, entries.map { it.pid })
+        return MonitoredProcesses(program, listOf(programPid) + descendants(programPid, entries).filter { !isConsoleHost(it) }.map { it.pid })
+    }
 
     /** The processes below [rootPid], parents before children; a pid seen twice (reuse, a cycle in stale data) is taken once. */
     fun descendants(rootPid: Long, entries: List<ProcessEntry>): List<ProcessEntry> {

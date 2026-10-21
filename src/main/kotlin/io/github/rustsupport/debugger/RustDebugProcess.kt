@@ -25,6 +25,9 @@ import com.intellij.xdebugger.breakpoints.XBreakpoint
 import com.intellij.xdebugger.breakpoints.XBreakpointHandler
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XSuspendContext
+import io.github.rustsupport.monitor.MonitorTarget
+import io.github.rustsupport.monitor.RunningRustProcesses
+import io.github.rustsupport.monitor.RustProcessStartListener
 import io.github.rustsupport.run.RustDebugLaunchSpec
 import io.github.rustsupport.toolchain.RustTool
 import io.github.rustsupport.toolchain.RustToolchain
@@ -63,6 +66,7 @@ class RustDebugProcess(
     @Volatile private var dap: DapConnection? = null
     @Volatile private var adapter: CodeLldbAdapter? = null
     @Volatile private var build: Process? = null
+    @Volatile private var monitored: MonitorTarget? = null
 
     /** The connection; requests before the adapter is there end with [DapClosedException]. */
     val connection: DapConnection get() = dap ?: NOT_STARTED
@@ -107,6 +111,9 @@ class RustDebugProcess(
             val started = CodeLldbAdapter.start(adapterPath, CodeLldbLaunch.adapterSettings(rustc?.sysroot), spec.workingDirectory, ::print)
             adapter = started
             if (shutdown.get()) return started.stop(0)
+            // the Rust Monitor follows the program under the adapter: its pid comes with the `process` event
+            monitored = RunningRustProcesses.getInstance(session.project).startedDebug(name, handler, started.pid)
+            if (monitored != null) RustProcessStartListener.openIfAsked(session.project)
             val connection = DapConnection(started.input, started.output, this, newProtocolTrace())
             dap = connection
             print("> $adapterPath (pid ${started.pid})\n> $program ${spec.programArguments.joinToString(" ")}\n", ProcessOutputTypes.SYSTEM)
@@ -146,8 +153,15 @@ class RustDebugProcess(
     override fun event(event: String, body: JsonObject) {
         when (event) {
             "initialized" -> configure()
-            "stopped" -> stoppedEvent(body)
-            "continued" -> if (!session.isStopped) session.sessionResumed()
+            "process" -> body.get("systemProcessId")?.takeIf { it.isJsonPrimitive }?.asLong?.let { monitored?.programPid = it }
+            "stopped" -> {
+                monitored?.paused = true
+                stoppedEvent(body)
+            }
+            "continued" -> {
+                monitored?.paused = false
+                if (!session.isStopped) session.sessionResumed()
+            }
             "output" -> output(body)
             "breakpoint" -> body.getAsJsonObject("breakpoint")?.let(lineBreakpoints::update)
             "exited" -> exitCode = body.int("exitCode")
@@ -239,6 +253,7 @@ class RustDebugProcess(
     private fun threadOf(context: XSuspendContext?): Int? = (context as? RustSuspendContext)?.activeThreadId ?: stoppedThreadId
 
     override fun resume(context: XSuspendContext?) {
+        monitored?.paused = false
         connection.request("continue", json("threadId" to (threadOf(context) ?: 0)))
     }
 
@@ -248,6 +263,7 @@ class RustDebugProcess(
 
     private fun step(command: String, context: XSuspendContext?) {
         val threadId = threadOf(context) ?: return
+        monitored?.paused = false
         connection.request(command, json("threadId" to threadId)).exceptionally { error ->
             session.reportMessage("${command.replaceFirstChar(Char::uppercase)} failed: ${errorText(error)}", MessageType.WARNING)
             null

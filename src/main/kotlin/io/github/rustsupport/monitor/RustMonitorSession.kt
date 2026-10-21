@@ -27,9 +27,17 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
-/** A run of our Cargo configurations: [pid] is the process the IDE started (cargo, mostly), [handler] stops it. */
-class MonitorTarget(val pid: Long, val name: String, val handler: ProcessHandler, val startedMillis: Long = System.currentTimeMillis()) {
-    val title: String get() = "$name ($pid)"
+/**
+ * A run of our Cargo configurations: [pid] is the process the IDE started (cargo, mostly; CodeLLDB for a [debug] session), [handler]
+ * stops it. Under the debugger the adapter tells the program's own pid ([programPid], DAP `process` event) and whether it is [paused].
+ */
+class MonitorTarget(
+    val pid: Long, val name: String, val handler: ProcessHandler, val startedMillis: Long = System.currentTimeMillis(), val debug: Boolean = false,
+) {
+    @Volatile var programPid: Long? = null
+    @Volatile var paused: Boolean = false
+
+    val title: String get() = if (debug) "$name [debug] ($pid)" else "$name ($pid)"
     override fun toString(): String = title
     override fun equals(other: Any?): Boolean = other is MonitorTarget && other.pid == pid
     override fun hashCode(): Int = pid.hashCode()
@@ -59,7 +67,9 @@ class RustMonitorSession(val target: MonitorTarget, private val onSample: (Monit
 
     private fun tick() {
         if (disposed) return
-        val tree = ProcessSampler.tree(target.pid)
+        // the program the debugger named: its own tree, wherever the adapter started it from
+        val programTree = target.programPid?.let(ProcessSampler::tree).orEmpty()
+        val tree = programTree.ifEmpty { ProcessSampler.tree(target.pid) }
         if (tree.isEmpty()) {
             dispose()
             onEnd()
@@ -72,7 +82,7 @@ class RustMonitorSession(val target: MonitorTarget, private val onSample: (Monit
                 info.commandLine().orElse(""), info.startInstant().map { it.toEpochMilli() }.orElse(0L),
             )
         }
-        val picked = RustProcessTree.pick(target.pid, entries)
+        val picked = if (programTree.isNotEmpty()) RustProcessTree.withChildren(target.programPid!!, entries) else RustProcessTree.pick(target.pid, entries)
         val measured = tree.filter { it.pid() in picked.pids }.ifEmpty { tree }
         val usage = ProcessSampler.sample(measured)
         val programPid = picked.program?.pid ?: target.pid
@@ -88,7 +98,7 @@ class RustMonitorSession(val target: MonitorTarget, private val onSample: (Monit
         if (disposed) return
         onSample(MonitorSample(
             System.currentTimeMillis(), programPid, RustProcessTree.executableName(program.name).ifEmpty { target.name }, cpu,
-            usage.workingSetBytes, usage.privateBytes, threads, usage.processes, program.startMillis, picked.isWholeTree,
+            usage.workingSetBytes, usage.privateBytes, threads, usage.processes, program.startMillis, picked.isWholeTree, target.paused,
         ))
     }
 
@@ -150,10 +160,21 @@ class RunningRustProcesses {
     fun select(target: MonitorTarget) = listeners.forEach { it(target) }
 
     fun started(name: String, handler: ProcessHandler) {
-        // the debugger's handler stands for CodeLLDB and has no process of its own: only plain runs are monitored
+        // the debugger's handler stands for CodeLLDB and has no process of its own: the debugger registers itself ([startedDebug])
         val pid = runCatching { (handler as? BaseProcessHandler<*>)?.process?.pid() }.getOrNull() ?: return
-        if (handler.isProcessTerminated) return
-        val target = MonitorTarget(pid, name, handler)
+        register(MonitorTarget(pid, name, handler))
+    }
+
+    /**
+     * A debug session: [adapterPid] is CodeLLDB, which starts the program; until the adapter tells the program's pid the program is looked
+     * for in its tree. The target is for the debugger to fill in ([MonitorTarget.programPid], [MonitorTarget.paused]).
+     */
+    fun startedDebug(name: String, handler: ProcessHandler, adapterPid: Long): MonitorTarget? =
+        MonitorTarget(adapterPid, name, handler, debug = true).takeIf { register(it) }
+
+    private fun register(target: MonitorTarget): Boolean {
+        val handler = target.handler
+        if (handler.isProcessTerminated) return false
         targets.add(0, target)
         handler.addProcessListener(object : ProcessListener {
             override fun processTerminated(event: ProcessEvent) {
@@ -162,6 +183,7 @@ class RunningRustProcesses {
             }
         })
         listeners.forEach { it(target) }
+        return true
     }
 
     companion object {
@@ -174,7 +196,13 @@ class RustProcessStartListener(private val project: Project) : ExecutionListener
     override fun processStarted(executorId: String, env: ExecutionEnvironment, handler: ProcessHandler) {
         val configuration = env.runProfile as? CargoRunConfiguration ?: return
         RunningRustProcesses.getInstance(project).started(configuration.name, handler)
-        if (RustSettings.getInstance().openMonitorOnRun && RunningRustProcesses.getInstance(project).find(handler) != null) {
+        if (RunningRustProcesses.getInstance(project).find(handler) != null) openIfAsked(project)
+    }
+
+    companion object {
+        /** Settings | Rust | "Open Rust Monitor when a Cargo run starts": for runs and debug sessions alike. */
+        fun openIfAsked(project: Project) {
+            if (!RustSettings.getInstance().openMonitorOnRun) return
             ApplicationManager.getApplication().invokeLater({
                 ToolWindowManager.getInstance(project).getToolWindow(RustMonitorToolWindowFactory.ID)?.show()
             }, project.disposed)

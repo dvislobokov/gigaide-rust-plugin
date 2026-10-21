@@ -176,7 +176,7 @@ class RustMonitorPanel(private val project: Project, parent: Disposable) : JPane
             uptime?.let { "up $it" },
             "peak ${ChartFormats.bytes(history.peakWorkingSetBytes.toDouble())}",
         ).joinToString("  ·  ")
-        status.text = if (sample.wholeTree) "${target.name}: cargo is building, the whole tree is measured" else "${target.name}: the program and its children"
+        status.text = MonitorFormats.status(target.name, target.debug, sample)
     }
 
     override fun dispose() {
