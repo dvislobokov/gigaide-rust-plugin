@@ -22,6 +22,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.util.execution.ParametersListUtil
 import io.github.rustsupport.RustIcons
+import io.github.rustsupport.cargo.CargoFeatureSettings
 import io.github.rustsupport.toolchain.RustTool
 import io.github.rustsupport.toolchain.RustToolchain
 import java.io.File
@@ -72,6 +73,12 @@ class CargoRunConfiguration(project: Project, factory: ConfigurationFactory, nam
     public override fun getOptions(): CargoRunConfigurationOptions = super.getOptions() as CargoRunConfigurationOptions
 
     override fun getConfigurationEditor(): SettingsEditor<out RunConfiguration> = CargoSettingsEditor(project)
+
+    /** A new configuration starts with the features checked in the Cargo tool window. */
+    override fun onNewConfigurationCreated() {
+        super.onNewConfigurationCreated()
+        if (options.features == null) options.features = CargoFeatureSettings.getInstance(project).runConfigurationFeatures(options.packageName)
+    }
 
     fun invocation(): CargoInvocation = CargoInvocation(
         command = ParametersListUtil.parse(options.command.orEmpty()).ifEmpty { listOf("run") },

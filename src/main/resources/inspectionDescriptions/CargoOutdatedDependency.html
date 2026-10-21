@@ -1,0 +1,10 @@
+<html>
+<body>
+Reports a dependency of <code>Cargo.toml</code> whose version requirement does not allow the newest release of the crate,
+and offers to update it.
+<p>The newest versions are only those learned in this session, by an action of the user: <b>Check for newer versions</b>
+(<code>cargo info</code>, Alt+Enter on a dependency) or <b>Tools | Rust | Check Dependency Updates</b>
+(<code>cargo update --dry-run</code>). Cargo reaches the registry itself, through its own proxy and registry-mirror settings;
+the inspection never goes to the network.</p>
+</body>
+</html>

@@ -13,6 +13,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.util.elementType
+import io.github.rustsupport.cargo.CargoFeatureSettings
 import io.github.rustsupport.lang.RustFile
 import io.github.rustsupport.lang.RustTokenTypes
 
@@ -115,7 +116,7 @@ class CargoRunConfigurationProducer : LazyRunConfigurationProducer<CargoRunConfi
     override fun setupConfigurationFromContext(configuration: CargoRunConfiguration, context: ConfigurationContext, sourceElement: Ref<PsiElement>): Boolean {
         val element = context.psiLocation ?: return false
         val target = CargoRunTargets.of(element) ?: return false
-        val invocation = target.invocation
+        val invocation = withDefaultFeatures(configuration, target.invocation)
         configuration.options.apply {
             command = invocation.command.joinToString(" ")
             packageName = invocation.packageName
@@ -136,11 +137,16 @@ class CargoRunConfigurationProducer : LazyRunConfigurationProducer<CargoRunConfi
     override fun isConfigurationFromContext(configuration: CargoRunConfiguration, context: ConfigurationContext): Boolean {
         val element = context.psiLocation ?: return false
         val target = CargoRunTargets.of(element) ?: return false
-        return configuration.invocation() == target.invocation &&
+        return configuration.invocation() == withDefaultFeatures(configuration, target.invocation) &&
             normalize(configuration.workingDirectory()) == normalize(target.workingDirectory ?: configuration.project.basePath.orEmpty())
     }
 
     private fun normalize(path: String): String = path.replace('\\', '/').trimEnd('/').lowercase()
+
+    /** The features checked in the Cargo tool window, when the runnable names none. */
+    private fun withDefaultFeatures(configuration: CargoRunConfiguration, invocation: CargoInvocation): CargoInvocation =
+        if (invocation.features != null) invocation
+        else invocation.copy(features = CargoFeatureSettings.getInstance(configuration.project).runConfigurationFeatures(invocation.packageName))
 }
 
 /** ▶ in the gutter at the names rust-analyzer runs (`fn main`, tests, test modules, benchmarks), or at `fn main` while it has not told. */

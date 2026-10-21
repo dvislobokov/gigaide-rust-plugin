@@ -77,4 +77,11 @@
         </group>
         <!-- end of rust-analyzer extensions -->
     </actions>
+
+    <!-- ===== Cargo tool window and Cargo.toml ===== -->
+    <!-- features checked in the Cargo tool window: rust-analyzer restarts with them as cargo.features -->
+    <projectListeners>
+        <listener class="io.github.rustsupport.lsp.RustAnalyzerCargoFeaturesListener" topic="io.github.rustsupport.cargo.CargoFeaturesListener"/>
+    </projectListeners>
+    <!-- end of Cargo tool window and Cargo.toml -->
 </idea-plugin>

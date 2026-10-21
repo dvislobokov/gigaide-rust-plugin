@@ -1,0 +1,17 @@
+<!-- Cargo.toml support on the PSI of the bundled TOML plugin (org.toml.lang): loaded only when that plugin is. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- crate names, versions and features of dependencies from the local registry cache and cargo metadata, never the network -->
+        <completion.contributor language="TOML" implementationClass="io.github.rustsupport.cargo.toml.CargoTomlCompletionContributor"/>
+        <!-- Ctrl + click on a dependency: its Cargo.toml -->
+        <gotoDeclarationHandler implementation="io.github.rustsupport.cargo.toml.CargoTomlGotoDeclarationHandler"/>
+        <localInspection language="TOML" shortName="CargoOutdatedDependency" displayName="Newer version of a dependency is available"
+                         groupName="Rust" enabledByDefault="true" level="WEAK WARNING"
+                         implementationClass="io.github.rustsupport.cargo.toml.CargoOutdatedDependencyInspection"/>
+        <intentionAction>
+            <language>TOML</language>
+            <className>io.github.rustsupport.cargo.toml.CargoCheckNewerVersionsIntention</className>
+            <category>Rust</category>
+        </intentionAction>
+    </extensions>
+</idea-plugin>

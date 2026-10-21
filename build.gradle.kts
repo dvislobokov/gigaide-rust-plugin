@@ -28,6 +28,8 @@ dependencies {
         }
         // for the content module io.github.rustsupport.lsp only: the rest of the plugin must not touch these classes
         bundledModule("intellij.platform.lsp")
+        // Cargo.toml support (completion, versions, features) on the PSI of the bundled TOML plugin: an optional dependency
+        bundledPlugin("org.toml.lang")
         testFramework(TestFrameworkType.Platform)
     }
     testImplementation("junit:junit:4.13.2")
