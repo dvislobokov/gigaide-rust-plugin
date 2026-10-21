@@ -51,6 +51,12 @@ class RustAnalyzerServerState(private val project: Project) : Disposable {
     @Volatile var sample: RustAnalyzerUsage.Sample? = null
         private set
 
+    /** The health of the server from its `experimental/serverStatus`: `ok`, `warning` or `error`, with what it says; null until told. */
+    class Health(val health: String, val message: String?)
+
+    @Volatile var health: Health? = null
+        private set
+
     private val usage = RustAnalyzerUsage()
     private var measuring: ScheduledFuture<*>? = null
 
@@ -62,6 +68,7 @@ class RustAnalyzerServerState(private val project: Project) : Disposable {
         version = null
         activity = null
         sample = null
+        health = null
         measuring?.cancel(false)
         measuring = AppExecutorUtil.getAppScheduledExecutorService().scheduleWithFixedDelay({ measure() }, 0, PERIOD_MS, TimeUnit.MILLISECONDS)
         RustAnalyzerStatusWidgetFactory.refresh(project)
@@ -77,6 +84,11 @@ class RustAnalyzerServerState(private val project: Project) : Disposable {
         sample = null
         activity = null
         RustAnalyzerStatusWidgetFactory.refresh(project)
+    }
+
+    fun healthChanged(health: String, message: String?) {
+        this.health = Health(health, message?.trim()?.takeIf { it.isNotEmpty() })
+        RustAnalyzerStatusWidgetFactory.repaint(project)
     }
 
     fun activityChanged(text: String?) {
@@ -151,6 +163,7 @@ class RustAnalyzerStatusWidget(private val project: Project) : StatusBarWidget, 
 class RustAnalyzerStatusPopup(private val project: Project) {
     private val state get() = RustAnalyzerServerState.getInstance(project)
     private val status = JBLabel()
+    private val health = JBLabel()
     private val cpu = JBLabel(RustAnalyzerStatusText.MEASURING)
     private val memory = JBLabel(RustAnalyzerStatusText.MEASURING)
     private val process = JBLabel()
@@ -166,12 +179,14 @@ class RustAnalyzerStatusPopup(private val project: Project) {
             row { icon(RustIcons.RUST); label(RustAnalyzerStatusText.title(state.version)).bold() }
             RustAnalyzerStatusText.build(state.version)?.let { row("Build:") { label(it) } }
             row("Status:") { cell(status) }
+            row("Health:") { cell(health) }
             row("CPU:") { cell(cpu) }
             row("Memory:") { cell(memory) }
             row("Process:") { cell(process) }
             separator()
             row {
                 link("Restart") { action("Rust.RestartLanguageServer") }
+                link("Log") { action("Rust.ShowLog") }
                 link("Install or Update Components") { action("Rust.InstallComponents") }
                 link("Settings...") { action("Rust.Settings") }
             }
@@ -191,6 +206,8 @@ class RustAnalyzerStatusPopup(private val project: Project) {
         val sample = state.sample
         val running = state.isRunning
         status.text = if (running) state.activity ?: "ready" else RustAnalyzerStatusText.STOPPED
+        health.text = if (running) RustAnalyzerStatusText.health(state.health?.health, state.health?.message) else RustAnalyzerStatusText.STOPPED
+        health.toolTipText = state.health?.message
         cpu.text = if (sample == null) (if (running) RustAnalyzerStatusText.MEASURING else RustAnalyzerStatusText.STOPPED) else RustAnalyzerStatusText.cpu(sample.cpuPercent)
         memory.text = sample?.let { RustAnalyzerStatusText.memoryWithCommitted(it.memoryBytes, it.committedBytes) }
             ?: if (running) RustAnalyzerStatusText.MEASURING else RustAnalyzerStatusText.STOPPED
@@ -253,6 +270,13 @@ object RustAnalyzerStatusText {
     ).joinToString(", ")
 
     /** `rust-analyzer 1.99.1`, out of `1.99.1 (58cf8f9c 2026-10-13)`. */
+    /** `ok`, or `warning: Failed to run build scripts...` cut to a line of the popup; `unknown` before the server has told. */
+    fun health(health: String?, message: String?): String {
+        if (health == null) return "unknown"
+        val first = message?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim()
+        return if (first == null) health else "$health: " + if (first.length > 80) first.take(79) + "…" else first
+    }
+
     fun title(version: String?): String = listOf("rust-analyzer", version?.substringBefore(' ').orEmpty()).filter { it.isNotEmpty() }.joinToString(" ")
 
     /** `58cf8f9c 2026-10-13`: the commit and the date of the build, when the version names them. */

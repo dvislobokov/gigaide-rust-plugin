@@ -14,6 +14,9 @@
 - rust-analyzer стартует при открытии проекта с Rust (`RustAnalyzerStartupActivity`), свой виджет в статус-баре с CPU/RAM
   (`RustAnalyzerStatus.kt`), навигация Ctrl+клик — `RustAnalyzerGotoDeclarationHandler`.
 - Кастомные запросы к rust-analyzer: `RustAnalyzer.client(project)` + `client.sendRequestSync(...)` (см. `RustAnalyzerNavigation.kt`).
+- Расширения протокола rust-analyzer (`rust-analyzer/expandMacro`, `experimental/*`): интерфейс `RustAnalyzerServer` с `@JsonRequest`
+  (подставлен платформе через `lsp4jServerClass` дескриптора), ответы — сырой JSON, разбор в `RustAnalyzerProtocol`; отправка —
+  `RustAnalyzerRequests.send` (`RustAnalyzerExtensions.kt`). Лог сервера — tool window `rust-analyzer` (`RustAnalyzerLog.kt`).
 
 ## Сборка
 - `.\build.ps1` (тесты + ZIP) или напрямую: `$env:JAVA_HOME='C:\Program Files\GIGA IDE\GIGA IDE 2026.1\jbr'; .\gradlew.bat test --offline -q`.
