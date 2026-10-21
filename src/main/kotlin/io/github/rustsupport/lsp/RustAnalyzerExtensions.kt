@@ -71,6 +71,19 @@ object RustAnalyzerCapabilities {
         is Map<*, *> -> LinkedHashMap<Any?, Any?>(experimental).apply { put("serverStatusNotification", true) }
         else -> JsonObject().apply { addProperty("serverStatusNotification", true) }
     }
+
+    /**
+     * [experimental] with `commands: {commands: ["rust-analyzer.showReferences"]}`: rust-analyzer gives code lenses only to a client that
+     * runs their command itself (seen live with 1.99.1), which [RustAnalyzerLenses] does. Run and debug are not listed: no such lenses.
+     */
+    fun withLensCommands(experimental: Any?): Any {
+        val commands = JsonObject().apply { add("commands", JsonArray().apply { add(RustLenses.SHOW_REFERENCES) }) }
+        return when (experimental) {
+            is JsonObject -> experimental.deepCopy().apply { add("commands", commands) }
+            is Map<*, *> -> LinkedHashMap<Any?, Any?>(experimental).apply { put("commands", mapOf("commands" to listOf(RustLenses.SHOW_REFERENCES))) }
+            else -> JsonObject().apply { add("commands", commands) }
+        }
+    }
 }
 
 class JoinLinesParams(@JvmField val textDocument: TextDocumentIdentifier, @JvmField val ranges: List<Range>)

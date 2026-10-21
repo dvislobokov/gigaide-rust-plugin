@@ -47,6 +47,7 @@ class RustSettingsConfigurable : BoundConfigurable("Rust") {
             row { checkBox("Expand procedural macros").bindSelected(settings::procMacros) }
             row { checkBox("Run build scripts (build.rs)").bindSelected(settings::buildScripts) }
             row { checkBox("Inlay hints: types, parameter names, chaining").bindSelected(settings::inlayHints) }
+            row { checkBox("Code vision: usages and implementations above items").bindSelected(settings::codeLens) }
         }
         group("Memory") {
             row {
