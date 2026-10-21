@@ -27,6 +27,10 @@ class RustSettings : PersistentStateComponent<RustSettings> {
     /** The Rust Monitor tool window shows itself when a Cargo run starts. */
     var openMonitorOnRun: Boolean = false
 
+    /** What rust-analyzer is started with or told: a change of these restarts it. */
+    fun serverState(): List<Any> =
+        listOf(languageServerEnabled, rustAnalyzerPath, cargoPath, checkCommand, procMacros, buildScripts, inlayHints, primeCaches, lruCapacity)
+
     override fun getState(): RustSettings = this
     override fun loadState(state: RustSettings) = XmlSerializerUtil.copyBean(state, this)
 

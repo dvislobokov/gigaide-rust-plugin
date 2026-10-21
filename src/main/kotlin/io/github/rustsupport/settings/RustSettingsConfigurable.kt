@@ -66,9 +66,11 @@ class RustSettingsConfigurable : BoundConfigurable("Rust") {
         }
     }.also { refreshDetected() }
 
+    /** rust-analyzer restarts only when what it is started with or told has changed: not for the monitor switch. */
     override fun apply() {
+        val before = settings.serverState()
         super.apply()
-        RustSettings.fireChanged()
+        if (settings.serverState() != before) RustSettings.fireChanged()
     }
 
     /** The toolchain check (the tools, where they come from, whether they run, rust-src, MSVC), run off the EDT. */
