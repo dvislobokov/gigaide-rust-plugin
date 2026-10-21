@@ -55,6 +55,7 @@ import org.eclipse.lsp4j.ProgressParams
 import org.eclipse.lsp4j.WorkDoneProgressBegin
 import org.eclipse.lsp4j.WorkDoneProgressEnd
 import org.eclipse.lsp4j.WorkDoneProgressReport
+import org.eclipse.lsp4j.services.LanguageServer
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 
@@ -137,6 +138,9 @@ class RustAnalyzerDescriptor(project: Project) : ProjectWideLspClientDescriptor(
     }
 
     override fun getLanguageId(file: VirtualFile): String = "rust"
+
+    /** The requests of rust-analyzer beyond the protocol, `experimental/runnables` among them ([RustAnalyzerServer]). */
+    override val lsp4jServerClass: Class<out LanguageServer> get() = RustAnalyzerServer::class.java
 
     override fun createInitializationOptions(): Any = RustAnalyzerOptions.build(RustSettings.getInstance())
 
