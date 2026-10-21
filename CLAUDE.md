@@ -37,3 +37,15 @@
   кнопкой в уведомлении/настройках, скачивание — по клику, через платформенный `HttpRequests` (прокси IDE) в отменяемой фоновой
   задаче, распаковка в процессе. Никаких внешних `curl`/`wget`/`Invoke-WebRequest`/`bitsadmin`. Запуск тулчейна пользователя
   (`rustup component add` по кнопке, cargo, rust-analyzer) — можно.
+
+## Отладчик (`io.github.rustsupport.debugger`)
+- Свой DAP-клиент на XDebugger API (как в go/dotnet-плагинах; `intellij.platform.dap` в GIGA нет), адаптер — **CodeLLDB**.
+  Сессия — только через `XDebuggerManager.newSessionBuilder(...)`, раннер всегда отдаёт `RunContentDescriptor` (иначе GIGA не строит UI).
+- Запуск: `RustDebugRunner` для `RustDebuggableConfiguration` → `RustDebugProcess`: `cargo <build> --message-format=json` (вывод в консоль
+  сессии), exe из `compiler-artifact` (`CargoBuild`), потом `codelldb --connect <port>` и `initialize`/`launch` (`CodeLldbLaunch`).
+- Транспорт — TCP (адаптер подключается к порту IDE), **не stdio**: при `terminal: console` программа наследует stdout/stderr адаптера
+  (проверено зондом) и по stdio ломала бы framing. stdout/stderr адаптера = вывод программы, stdin адаптера = её ввод.
+- `sourceLanguages: ["rust"]` — это `--settings` адаптера (там же `scriptConfig.lang.rust.sysroot`, иначе rust.py ищет rustc в своём PATH);
+  `evaluate` — с контекстом `watch`/`hover`, не `repl` (в CodeLLDB это команды LLDB).
+- CodeLLDB: путь из настроек → расширение VS Code / Insiders / Cursor / VSCodium (новейшее) → скачанный в `<system>/rust-support/codelldb/<ver>`.
+  **Сам ничего не скачивает**: только по кнопке пользователя, с подтверждением (версия, URL, размер), через `HttpRequests`, распаковка `java.util.zip`.
