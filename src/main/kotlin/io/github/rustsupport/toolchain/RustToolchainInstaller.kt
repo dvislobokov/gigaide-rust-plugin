@@ -44,7 +44,6 @@ object RustToolchainInstaller {
      */
     fun offerMsvcLinker(project: Project) {
         if (!linkerOffered.compareAndSet(false, true)) return
-        val installer = java.io.File(System.getenv("ProgramFiles(x86)") ?: "C:\\Program Files (x86)", "Microsoft Visual Studio\\Installer\\setup.exe")
         NotificationGroupManager.getInstance().getNotificationGroup(NOTIFICATION_GROUP)
             .createNotification(
                 "Build scripts and proc macros cannot be built",
@@ -52,14 +51,14 @@ object RustToolchainInstaller {
                     "in Visual Studio Installer. Until then rust-analyzer does not expand derives and other proc macros.",
                 NotificationType.ERROR,
             )
-            .apply {
-                if (installer.isFile) addAction(NotificationAction.createSimpleExpiring("Open Visual Studio Installer") {
-                    runCatching { ProcessBuilder(installer.path).start() }
-                })
-            }
-            .addAction(NotificationAction.createSimple("Download Build Tools") { BrowserUtil.browse(BUILD_TOOLS_URL) })
+            .apply { Msvc.installerAction()?.let(::addAction) }
+            .addAction(NotificationAction.createSimple("Build Tools Web Page") { BrowserUtil.browse(BUILD_TOOLS_URL) })
             .notify(project)
     }
+
+    /** The toolchain check has told about rust-analyzer or MSVC in its own balloon: these are not offered a second time this session. */
+    fun markRustAnalyzerOffered() = offered.set(true)
+    fun markMsvcOffered() = linkerOffered.set(true)
 
     private const val BUILD_TOOLS_URL = "https://visualstudio.microsoft.com/visual-cpp-build-tools/"
 

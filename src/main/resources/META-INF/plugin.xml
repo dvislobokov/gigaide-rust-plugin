@@ -27,6 +27,8 @@
         <directoryIndexExcludePolicy implementation="io.github.rustsupport.toolchain.RustExcludePolicy"/>
         <!-- the default JDK the IDE gives a directory it opens, off a Rust project without Java -->
         <postStartupActivity implementation="io.github.rustsupport.toolchain.RustProjectSdkCleaner"/>
+        <!-- the tools on PATH / in ~/.cargo/bin, whether they run, rust-src, MSVC: one balloon with the fixes when something is missing -->
+        <postStartupActivity implementation="io.github.rustsupport.toolchain.RustToolchainCheckActivity"/>
         <fileIconProvider implementation="io.github.rustsupport.RustFileIconProvider" order="first"/>
 
         <!-- Rust as a language of the plugin: a lexer without a grammar (structure, errors and resolve are rust-analyzer's) -->
@@ -46,6 +48,8 @@
     <actions>
         <group id="Rust.ToolsMenu" text="Rust" popup="true" icon="/icons/rustToolWindow.svg">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <action id="Rust.CheckToolchain" class="io.github.rustsupport.toolchain.CheckRustToolchainAction" text="Check Toolchain"
+                    icon="AllIcons.Actions.Checked" description="Look at cargo, rustc, rust-analyzer, rustfmt, clippy, rust-src and the MSVC linker"/>
             <action id="Rust.InstallComponents" class="io.github.rustsupport.settings.InstallRustComponentsAction" text="Install or Update Components"
                     icon="AllIcons.Actions.Download" description="rustup component add rust-analyzer rust-src rustfmt clippy"/>
             <separator/>

@@ -13,8 +13,7 @@ import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.builder.toNullableProperty
-import io.github.rustsupport.toolchain.RustTool
-import io.github.rustsupport.toolchain.RustToolchain
+import io.github.rustsupport.toolchain.RustToolchainCheck
 
 /** Settings | Languages & Frameworks | Rust. Apply restarts rust-analyzer. */
 class RustSettingsConfigurable : BoundConfigurable("Rust") {
@@ -28,8 +27,9 @@ class RustSettingsConfigurable : BoundConfigurable("Rust") {
                     .bindText(settings::cargoPath).align(AlignX.FILL)
                     .comment("Empty: found on PATH or in ~/.cargo/bin")
             }
-            row { cell(detected) }
+            row { cell(detected).align(AlignX.FILL) }
             row {
+                button("Check Again") { refreshDetected() }
                 button("Install or Update Components") { RustComponents.installAll(null) }
                     .comment("rustup component add rust-analyzer rust-src rustfmt clippy")
             }
@@ -65,13 +65,11 @@ class RustSettingsConfigurable : BoundConfigurable("Rust") {
         RustSettings.fireChanged()
     }
 
-    /** The versions of the tools found, read off the EDT. */
+    /** The toolchain check (the tools, where they come from, whether they run, rust-src, MSVC), run off the EDT. */
     private fun refreshDetected() {
+        detected.text = "Checking the toolchain..."
         ApplicationManager.getApplication().executeOnPooledThread {
-            val lines = listOf(RustTool.RUSTC, RustTool.CARGO, RustTool.RUST_ANALYZER).map { tool ->
-                RustToolchain.version(tool) ?: "${tool.executable}: not found"
-            }
-            val html = lines.joinToString("<br>", "<html>", "</html>")
+            val html = RustToolchainCheck.html(RustToolchainCheck.run())
             ApplicationManager.getApplication().invokeLater({ detected.text = html }, ModalityState.any())
         }
     }

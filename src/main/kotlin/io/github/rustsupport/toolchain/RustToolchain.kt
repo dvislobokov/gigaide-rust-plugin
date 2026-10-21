@@ -19,12 +19,19 @@ enum class RustTool(val executable: String, val component: String?) {
     /** The tool: the path in the settings, then PATH, then ~/.cargo/bin (where rustup puts it, missing from PATH of an IDE started before rustup was installed). */
     fun find(): File? = RustToolchain.find(this, configuredPath(), System.getenv("PATH"), RustToolchain.cargoHome())?.toFile()
 
-    private fun configuredPath(): String? = when (this) {
+    /** Where [find] takes the tool from. */
+    fun locate(): RustToolLocation? = RustToolchain.locate(this, configuredPath(), System.getenv("PATH"), RustToolchain.cargoHome())
+
+    internal fun configuredPath(): String? = when (this) {
         RUST_ANALYZER -> RustSettings.getInstance().rustAnalyzerPath
         CARGO -> RustSettings.getInstance().cargoPath
         else -> null
     }?.takeIf { it.isNotBlank() }
 }
+
+enum class RustToolSource(val text: String) { SETTINGS("settings"), PATH("PATH"), CARGO_HOME("~/.cargo/bin, not on PATH") }
+
+data class RustToolLocation(val path: Path, val source: RustToolSource)
 
 object RustToolchain {
     /** `CARGO_HOME`, or ~/.cargo. */
@@ -40,8 +47,16 @@ object RustToolchain {
         }
     }
 
-    fun find(tool: RustTool, configured: String?, pathEnv: String?, cargoHome: Path): Path? =
-        candidates(tool, configured, pathEnv, cargoHome).firstOrNull { File(it.toString()).canExecute() }
+    fun find(tool: RustTool, configured: String?, pathEnv: String?, cargoHome: Path): Path? = locate(tool, configured, pathEnv, cargoHome)?.path
+
+    /** The first candidate that exists, with where it comes from. */
+    fun locate(tool: RustTool, configured: String?, pathEnv: String?, cargoHome: Path, windows: Boolean = SystemInfo.isWindows): RustToolLocation? {
+        val name = if (windows) tool.executable + ".exe" else tool.executable
+        configured?.let { Path.of(it) }?.takeIf { File(it.toString()).canExecute() }?.let { return RustToolLocation(it, RustToolSource.SETTINGS) }
+        pathEnv?.split(File.pathSeparatorChar)?.filter { it.isNotBlank() }?.map { Path.of(it.trim('"'), name) }
+            ?.firstOrNull { File(it.toString()).canExecute() }?.let { return RustToolLocation(it, RustToolSource.PATH) }
+        return cargoHome.resolve("bin").resolve(name).takeIf { File(it.toString()).canExecute() }?.let { RustToolLocation(it, RustToolSource.CARGO_HOME) }
+    }
 
     /** A command line of [executable] with ~/.cargo/bin on PATH: the rustup proxies find the toolchain through it. */
     fun commandLine(executable: File, workDirectory: String?, vararg args: String): GeneralCommandLine =
