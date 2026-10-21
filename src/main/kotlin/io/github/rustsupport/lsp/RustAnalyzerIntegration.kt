@@ -26,6 +26,7 @@ import com.intellij.platform.lsp.api.LspServerListener
 import com.intellij.platform.lsp.api.LspServerNotificationsHandler
 import com.intellij.platform.lsp.api.ProjectWideLspClientDescriptor
 import com.intellij.platform.lsp.api.customization.LspCustomization
+import com.intellij.platform.lsp.api.customization.LspDiagnosticsCustomizer
 import com.intellij.platform.lsp.api.customization.LspDocumentHighlightsCustomizer
 import com.intellij.platform.lsp.api.customization.LspDocumentHighlightsSupport
 import com.intellij.platform.lsp.api.customization.LspFormattingCustomizer
@@ -184,6 +185,9 @@ class RustAnalyzerDescriptor(project: Project) : ProjectWideLspClientDescriptor(
         override val selectionRangeCustomizer: LspSelectionRangeCustomizer = object : LspSelectionRangeSupport() {
             override fun shouldAskServerForSelectionRange(file: VirtualFile): Boolean = RustAnalyzerIntegrationProvider.isRustFile(file)
         }
+
+        /** "Explain E0308" on the errors with a code of rustc ([RustAnalyzerDiagnosticsSupport]). */
+        override val diagnosticsCustomizer: LspDiagnosticsCustomizer = RustAnalyzerDiagnosticsSupport()
 
         /** Reformat Code is rustfmt through rust-analyzer: the IDE has no formatter of Rust. */
         override val formattingCustomizer: LspFormattingCustomizer = object : LspFormattingSupport() {

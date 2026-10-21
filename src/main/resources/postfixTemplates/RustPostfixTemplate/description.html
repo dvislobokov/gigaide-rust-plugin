@@ -1,0 +1,18 @@
+<html><body>
+Rust postfix template: type the key after an expression and press Tab. The expression is what ends right before the dot: a name,
+a path, a literal, a call, an indexing or a chain of fields and methods (<code>&amp;x.ref</code> wraps <code>x</code>).
+rust-analyzer offers type-aware postfix completions of its own in the completion list.
+<table>
+<tr><td><code>.if</code> <code>.not</code> <code>.match</code> <code>.while</code></td><td>if expr {} / !expr / match expr {} / while expr {}</td></tr>
+<tr><td><code>.ifl</code> <code>.iflet</code></td><td>if let Some(x) = expr {}</td></tr>
+<tr><td><code>.for</code></td><td>for x in expr {}</td></tr>
+<tr><td><code>.let</code> <code>.letm</code></td><td>let name = expr; / let mut name = expr;</td></tr>
+<tr><td><code>.ref</code> <code>.refm</code> <code>.deref</code> <code>.par</code></td><td>&amp;expr / &amp;mut expr / *expr / (expr)</td></tr>
+<tr><td><code>.dbg</code> <code>.println</code></td><td>dbg!(expr) / println!("{:?}", expr);</td></tr>
+<tr><td><code>.ok</code> <code>.err</code> <code>.some</code></td><td>Ok(expr) / Err(expr) / Some(expr)</td></tr>
+<tr><td><code>.box</code> <code>.rc</code> <code>.arc</code></td><td>Box::new(expr) / Rc::new(expr) / Arc::new(expr)</td></tr>
+<tr><td><code>.unwrap</code> <code>.expect</code></td><td>expr.unwrap() / expr.expect("msg")</td></tr>
+<tr><td><code>.iter</code> <code>.into</code> <code>.clone</code> <code>.to_string</code></td><td>expr.iter() / expr.into() / expr.clone() / expr.to_string()</td></tr>
+<tr><td><code>.return</code></td><td>return expr;</td></tr>
+</table>
+</body></html>

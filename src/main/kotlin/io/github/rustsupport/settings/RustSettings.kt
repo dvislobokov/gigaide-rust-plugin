@@ -26,6 +26,8 @@ class RustSettings : PersistentStateComponent<RustSettings> {
     var lruCapacity: Int = 64
     /** The Rust Monitor tool window shows itself when a Cargo run starts. */
     var openMonitorOnRun: Boolean = false
+    /** rustfmt over the Rust files of the project when they are saved (Settings | Tools | Actions on Save as well). */
+    var rustfmtOnSave: Boolean = false
 
     /** What rust-analyzer is started with or told: a change of these restarts it. */
     fun serverState(): List<Any> =
