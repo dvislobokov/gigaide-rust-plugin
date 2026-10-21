@@ -8,21 +8,9 @@ import com.intellij.openapi.vfs.VirtualFile
 import io.github.rustsupport.run.RustRunnableSource
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.TextDocumentIdentifier
-import org.eclipse.lsp4j.jsonrpc.services.JsonRequest
-import org.eclipse.lsp4j.services.LanguageServer
 import java.util.concurrent.CompletableFuture
 
-/**
- * The extensions of rust-analyzer to the protocol (https://rust-analyzer.github.io/book/contributing/lsp-extensions.html) the plugin
- * sends: the platform builds its proxy of the server from this interface ([RustAnalyzerDescriptor.lsp4jServerClass]).
- */
-interface RustAnalyzerServer : LanguageServer {
-    /** The answer is kept as JSON: it is read by [io.github.rustsupport.run.CargoRunnables], which the main part of the plugin owns. */
-    @JsonRequest("experimental/runnables")
-    fun runnables(params: RunnablesParams): CompletableFuture<JsonElement?>
-}
-
-/** No [position]: every runnable of the file, and those of its package. */
+/** `experimental/runnables` of [RustAnalyzerServer]; no [position]: every runnable of the file, and those of its package. */
 class RunnablesParams(val textDocument: TextDocumentIdentifier, val position: Position? = null)
 
 /** The runnables of a file for the gutter and the run configurations of the main part of the plugin. */

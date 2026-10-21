@@ -139,7 +139,7 @@ class RustAnalyzerDescriptor(project: Project) : ProjectWideLspClientDescriptor(
         return RustAnalyzerLsp4jClient(LoggingNotificationsHandler(ProgressTrackingHandler(handler, RustAnalyzerServerState.getInstance(project)), log), log::serverStatus)
     }
 
-    /** The requests of rust-analyzer beyond the protocol (expand macro, parent module, join lines, on enter, views) on the same connection. */
+    /** The requests of rust-analyzer beyond the protocol (runnables, expand macro, parent module, join lines, on enter, views) on the same connection. */
     override val lsp4jServerClass: Class<out LanguageServer> = RustAnalyzerServer::class.java
 
     /** `experimental/serverStatus` is sent only to a client that asks for it: the health of the server for the status widget. */
@@ -155,9 +155,6 @@ class RustAnalyzerDescriptor(project: Project) : ProjectWideLspClientDescriptor(
     }
 
     override fun getLanguageId(file: VirtualFile): String = "rust"
-
-    /** The requests of rust-analyzer beyond the protocol, `experimental/runnables` among them ([RustAnalyzerServer]). */
-    override val lsp4jServerClass: Class<out LanguageServer> get() = RustAnalyzerServer::class.java
 
     override fun createInitializationOptions(): Any = RustAnalyzerOptions.build(RustSettings.getInstance())
 

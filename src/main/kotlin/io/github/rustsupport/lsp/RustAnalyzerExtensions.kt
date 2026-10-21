@@ -57,6 +57,10 @@ interface RustAnalyzerServer : LanguageServer {
 
     @JsonRequest("rust-analyzer/analyzerStatus")
     fun analyzerStatus(params: TextDocumentParams): CompletableFuture<JsonElement?>
+
+    /** The answer is kept as JSON: it is read by [io.github.rustsupport.run.CargoRunnables], which the main part of the plugin owns. */
+    @JsonRequest("experimental/runnables")
+    fun runnables(params: RunnablesParams): CompletableFuture<JsonElement?>
 }
 
 /** The client capabilities rust-analyzer reads under `experimental`; pure, for the tests. */
