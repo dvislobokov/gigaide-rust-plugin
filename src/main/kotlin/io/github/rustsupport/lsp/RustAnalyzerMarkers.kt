@@ -342,9 +342,9 @@ object RustTargets {
         return elements(project, RustAnalyzer.implementation(client, file, position, TIMEOUT_MS))
     }
 
-    fun elements(project: Project, places: List<RustAnalyzer.Place>): List<PsiElement> =
-        places.mapNotNull { place -> ReadAction.compute<PsiElement?, RuntimeException> { if (project.isDisposed) null else RustAnalyzer.element(project, place) } }
-            .distinct() // the impls of several proc macro derives share one place: one line for them
+    fun elements(project: Project, places: List<RustAnalyzer.Place>): List<PsiElement> = ReadAction.compute<List<PsiElement>, RuntimeException> {
+        if (project.isDisposed) emptyList() else onePerLine(places.mapNotNull { place -> RustAnalyzer.element(project, place) })
+    }
 
     /** The project, file and position of a token. Needs read access. */
     fun at(element: PsiElement): Triple<Project, VirtualFile, Position>? {
@@ -363,44 +363,25 @@ object RustTargets {
 
     fun navigator(targets: List<PsiElement>): PsiTargetNavigator<PsiElement> = PsiTargetNavigator(targets).presentationProvider { presentation(it) }
 
+    /**
+     * One target per line of a file: the impls of `#[derive(Debug, Clone, Serialize)]` have no source of their own, and rust-analyzer
+     * gives them all the line of the attribute (the name of a builtin derive, the whole item for a proc macro one), so the chooser
+     * showed that line once per trait (seen by a user). The line is shown whole, as the attribute it is. Needs read access.
+     */
+    fun onePerLine(elements: List<PsiElement>): List<PsiElement> = elements.distinctBy { element ->
+        val document = element.containingFile?.viewProvider?.document
+        val offset = element.textRange.startOffset
+        element.containingFile?.virtualFile?.path to (document?.getLineNumber(offset.coerceIn(0, document.textLength)) ?: offset)
+    }
+
     private fun presentation(element: PsiElement): TargetPresentation {
         val file = element.containingFile
         val document = file?.viewProvider?.document
         val offset = element.textRange.startOffset
         val line = document?.getLineNumber(offset.coerceIn(0, document.textLength))
-        val text = if (document != null && line != null) {
-            val start = document.getLineStartOffset(line)
-            val lineText = document.charsSequence.subSequence(start, document.getLineEndOffset(line)).toString()
-            derived(lineText, offset - start) ?: lineText.trim()
-        } else element.text
+        val text = if (document != null && line != null) document.charsSequence.subSequence(document.getLineStartOffset(line), document.getLineEndOffset(line)).toString().trim() else element.text
         val location = listOfNotNull(file?.name, line?.let { (it + 1).toString() }).joinToString(":")
         return TargetPresentation.builder(text.ifEmpty { element.text }).locationText(location, file?.getIcon(0)).presentation()
-    }
-
-    private val DERIVE = Regex("""^\s*#\[\s*derive\s*\(""")
-
-    /** The derives of the compiler: rust-analyzer gives their impls the name in the attribute, not the whole item. */
-    private val BUILTIN_DERIVES = setOf("Clone", "Copy", "Debug", "Default", "Hash", "PartialEq", "Eq", "PartialOrd", "Ord")
-
-    /**
-     * `#[derive(Debug)]` for the place of an impl made by a derive on [line]: such impls have no source of their own, so the whole line
-     * would be the same for all of them (seen by a user: three `#[derive(Debug, Clone, Deserialize)]`). rust-analyzer gives an impl of a
-     * builtin derive the name of its trait in the attribute ([column] on it), and one of a proc macro (`Serialize` of serde) the whole
-     * item from its `#` (seen in VS Code as well): that one is told by the derives of the list that are not builtin. Null for any other place.
-     */
-    fun derived(line: String, column: Int): String? {
-        val list = DERIVE.find(line) ?: return null
-        if (column < line.length && line[column] == '#' && line.substring(0, column).isBlank()) {
-            val names = line.substring(list.range.last + 1).substringBefore(')').split(',').map { it.trim() }.filter { it.isNotEmpty() }
-            val procMacros = names.filter { it.substringAfterLast("::") !in BUILTIN_DERIVES }
-            return procMacros.takeIf { it.isNotEmpty() }?.joinToString(", ", "#[derive(", ")]")
-        }
-        if (column < list.range.last + 1 || column >= line.length || !Character.isJavaIdentifierPart(line[column])) return null
-        var start = column
-        while (start > 0 && (Character.isJavaIdentifierPart(line[start - 1]) || line[start - 1] == ':')) start--
-        var end = column
-        while (end < line.length && (Character.isJavaIdentifierPart(line[end]) || line[end] == ':')) end++
-        return "#[derive(${line.substring(start, end)})]"
     }
 }
 
