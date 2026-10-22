@@ -147,4 +147,175 @@
       <option name="RUST_CODE" value="true"/>
     </context>
   </template>
+
+  <!--
+    Named by the keyword itself: completion offers a live template whose name is the whole word typed, so `struct` shows
+    `struct … { }` in the popup next to the keyword of rust-analyzer (Enter or Tab expands it). The caret goes to an empty name first.
+  -->
+  <template name="struct" value="struct $NAME$ {&#10;    $END$&#10;}" description="struct Name { fields }" toReformat="false" toShortenFQNames="false">
+    <variable name="NAME" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_ITEM" value="true"/>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="structt" value="struct $NAME$($FIELDS$);$END$" description="struct Name(fields): a tuple struct" toReformat="false" toShortenFQNames="false">
+    <variable name="NAME" expression="" defaultValue="" alwaysStopAt="true"/>
+    <variable name="FIELDS" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_ITEM" value="true"/>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="enum" value="enum $NAME$ {&#10;    $END$&#10;}" description="enum Name { variants }" toReformat="false" toShortenFQNames="false">
+    <variable name="NAME" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_ITEM" value="true"/>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="trait" value="trait $NAME$ {&#10;    $END$&#10;}" description="trait Name { items }" toReformat="false" toShortenFQNames="false">
+    <variable name="NAME" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_ITEM" value="true"/>
+    </context>
+  </template>
+  <template name="impl" value="impl $TYPE$ {&#10;    $END$&#10;}" description="impl Type { items }" toReformat="false" toShortenFQNames="false">
+    <variable name="TYPE" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_ITEM" value="true"/>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="implfor" value="impl $TRAIT$ for $TYPE$ {&#10;    $END$&#10;}" description="impl Trait for Type { items }" toReformat="false" toShortenFQNames="false">
+    <variable name="TRAIT" expression="" defaultValue="" alwaysStopAt="true"/>
+    <variable name="TYPE" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_ITEM" value="true"/>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="new" value="pub fn new($PARAMS$) -&gt; Self {&#10;    Self { $END$ }&#10;}" description="pub fn new(..) -> Self: a constructor" toReformat="false" toShortenFQNames="false">
+    <variable name="PARAMS" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_ITEM" value="true"/>
+    </context>
+  </template>
+  <template name="mod" value="mod $NAME$ {&#10;    $END$&#10;}" description="mod name { items }" toReformat="false" toShortenFQNames="false">
+    <variable name="NAME" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_ITEM" value="true"/>
+    </context>
+  </template>
+  <template name="const" value="const $NAME$: $TYPE$ = $END$;" description="const NAME: Type = value;" toReformat="false" toShortenFQNames="false">
+    <variable name="NAME" expression="" defaultValue="" alwaysStopAt="true"/>
+    <variable name="TYPE" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_ITEM" value="true"/>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="static" value="static $NAME$: $TYPE$ = $END$;" description="static NAME: Type = value;" toReformat="false" toShortenFQNames="false">
+    <variable name="NAME" expression="" defaultValue="" alwaysStopAt="true"/>
+    <variable name="TYPE" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_ITEM" value="true"/>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="type" value="type $NAME$ = $END$;" description="type Name = Type;: a type alias" toReformat="false" toShortenFQNames="false">
+    <variable name="NAME" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_ITEM" value="true"/>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="macro_rules" value="macro_rules! $NAME$ {&#10;    ($PATTERN$) =&gt; {&#10;        $END$&#10;    };&#10;}" description="macro_rules! name { (pattern) => { expansion }; }" toReformat="false" toShortenFQNames="false">
+    <variable name="NAME" expression="" defaultValue="" alwaysStopAt="true"/>
+    <variable name="PATTERN" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_ITEM" value="true"/>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="tmain" value="#[tokio::main]&#10;async fn main() {&#10;    $END$&#10;}" description="#[tokio::main] async fn main()" toReformat="false" toShortenFQNames="false">
+    <context>
+      <option name="RUST_ITEM" value="true"/>
+    </context>
+  </template>
+  <template name="if" value="if $COND$ {&#10;    $END$&#10;}" description="if cond { }" toReformat="false" toShortenFQNames="false">
+    <variable name="COND" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="ife" value="if $COND$ {&#10;    $THEN$&#10;} else {&#10;    $END$&#10;}" description="if cond { } else { }" toReformat="false" toShortenFQNames="false">
+    <variable name="COND" expression="" defaultValue="" alwaysStopAt="true"/>
+    <variable name="THEN" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="iflet" value="if let $PAT$ = $EXPR$ {&#10;    $END$&#10;}" description="if let pattern = expr { }" toReformat="false" toShortenFQNames="false">
+    <variable name="PAT" expression="" defaultValue='"Some(x)"' alwaysStopAt="true"/>
+    <variable name="EXPR" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="letelse" value="let $PAT$ = $EXPR$ else {&#10;    $END$&#10;};" description="let pattern = expr else { diverge };" toReformat="false" toShortenFQNames="false">
+    <variable name="PAT" expression="" defaultValue='"Some(x)"' alwaysStopAt="true"/>
+    <variable name="EXPR" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="while" value="while $COND$ {&#10;    $END$&#10;}" description="while cond { }" toReformat="false" toShortenFQNames="false">
+    <variable name="COND" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="whilelet" value="while let $PAT$ = $EXPR$ {&#10;    $END$&#10;}" description="while let pattern = expr { }" toReformat="false" toShortenFQNames="false">
+    <variable name="PAT" expression="" defaultValue='"Some(x)"' alwaysStopAt="true"/>
+    <variable name="EXPR" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="match" value="match $EXPR$ {&#10;    $END$&#10;}" description="match expr { arms }" toReformat="false" toShortenFQNames="false">
+    <variable name="EXPR" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="let" value="let $NAME$ = $END$;" description="let name = value;" toReformat="false" toShortenFQNames="false">
+    <variable name="NAME" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="letm" value="let mut $NAME$ = $END$;" description="let mut name = value;" toReformat="false" toShortenFQNames="false">
+    <variable name="NAME" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="unsafe" value="unsafe {&#10;    $END$&#10;}" description="unsafe { }" toReformat="false" toShortenFQNames="false">
+    <context>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="spawn" value="std::thread::spawn(move || {&#10;    $END$&#10;});" description="std::thread::spawn(move || { })" toReformat="false" toShortenFQNames="false">
+    <context>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
+  <template name="aeq" value="assert_eq!($LEFT$, $RIGHT$);$END$" description="assert_eq!(left, right);" toReformat="false" toShortenFQNames="false">
+    <variable name="LEFT" expression="" defaultValue="" alwaysStopAt="true"/>
+    <variable name="RIGHT" expression="" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="RUST_CODE" value="true"/>
+    </context>
+  </template>
 </templateSet>
