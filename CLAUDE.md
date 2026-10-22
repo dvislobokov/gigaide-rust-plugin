@@ -55,7 +55,7 @@
   (`lldb_lookup.py` + `lldb_commands`); паника — `setFunctionBreakpoints` на `rust_panic`; LLDB-команды в `repl` — с префиксом `` ` ``.
 - **Пути ко всем бинарям настраиваются в IDE** (cargo, rustc, rustfmt, cargo-clippy, rustup, rust-analyzer, codelldb, lldb-dap) и к исходникам std (rust-src, `RustSources`): у
   пользователей бывают свои сборки инструментов (например, из их VS Code-плагина) вне PATH и `~/.cargo/bin`. Новый внешний бинарь —
-  сразу с полем пути в настройках. `RustToolchain.environment` передаёт заданные пути дальше (`RUSTC`, `RUSTFMT`, `RUST_SRC_PATH`, папки первыми в PATH).
+  сразу с полем пути в настройках. `RustToolchain.environment` передаёт заданные пути дальше (`RUSTC`, `RUSTFMT`, `RUST_SRC_PATH`, папки первыми в PATH); то же получает терминал IDE (`RustTerminalCustomizer`, `rust-terminal.xml`).
 - **Прокси и зеркала реестра.** Реестр крейтов может быть за системным/корпоративным прокси или заменён зеркалом
   (`~/.cargo/config.toml`: `[http] proxy`, `[source.crates-io] replace-with`, `[registries]`; env `HTTPS_PROXY`/`CARGO_HTTP_PROXY`).
   Данные о крейтах (версии, features, описание) — через сам `cargo` (`cargo info`, `cargo metadata`, `cargo add`): он применяет

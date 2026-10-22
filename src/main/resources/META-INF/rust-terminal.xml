@@ -1,0 +1,7 @@
+<!-- The terminal of the IDE (org.jetbrains.plugins.terminal): loaded only when that plugin is. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="org.jetbrains.plugins.terminal">
+        <!-- the tools of the settings first on PATH, RUSTC, RUSTFMT, RUST_SRC_PATH: the terminal runs what the plugin runs -->
+        <shellExecOptionsCustomizer implementation="io.github.rustsupport.toolchain.RustTerminalCustomizer"/>
+    </extensions>
+</idea-plugin>

@@ -101,8 +101,15 @@ object RustToolchain {
      * the settings, which rust-analyzer takes over the sysroot.
      */
     fun environment(executable: File? = null): Map<String, String> = buildMap {
-        val configured = RustTool.entries.mapNotNull { it.configuredPath() }.mapNotNull { File(it).absoluteFile.parent }
-        put("PATH", withDirectories(pathEnv(), listOfNotNull(executable?.absoluteFile?.parent), before = configured))
+        put("PATH", withDirectories(pathEnv(), listOfNotNull(executable?.absoluteFile?.parent), before = configuredDirectories()))
+        putAll(configuredVariables())
+    }
+
+    /** The directories of the tools set in the settings, in the order of [RustTool.entries]. */
+    fun configuredDirectories(): List<String> = RustTool.entries.mapNotNull { it.configuredPath() }.mapNotNull { File(it).absoluteFile.parent }.distinct()
+
+    /** `RUSTC`, `RUSTFMT` and `RUST_SRC_PATH` of the settings: what is not set is not there. */
+    fun configuredVariables(): Map<String, String> = buildMap {
         RustTool.RUSTC.configuredPath()?.let { put("RUSTC", it) }
         RustTool.RUSTFMT.configuredPath()?.let { put("RUSTFMT", it) }
         RustSources.configured()?.let { put("RUST_SRC_PATH", it.toString()) }

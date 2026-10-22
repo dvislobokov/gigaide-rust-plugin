@@ -30,6 +30,8 @@ dependencies {
         bundledModule("intellij.platform.lsp")
         // Cargo.toml support (completion, versions, features) on the PSI of the bundled TOML plugin: an optional dependency
         bundledPlugin("org.toml.lang")
+        // the terminal gets the tools of the settings (RustTerminalCustomizer): an optional dependency
+        bundledPlugin("org.jetbrains.plugins.terminal")
         testFramework(TestFrameworkType.Platform)
     }
     testImplementation("junit:junit:4.13.2")

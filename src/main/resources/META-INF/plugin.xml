@@ -155,6 +155,7 @@
     <!-- the workspaces of cargo metadata, targets, features, dependencies (package io.github.rustsupport.cargo) -->
     <!-- Cargo.toml completion, navigation and newer versions on the PSI of the bundled TOML plugin, when it is there (cargo.toml) -->
     <depends optional="true" config-file="rust-toml.xml">org.toml.lang</depends>
+    <depends optional="true" config-file="rust-terminal.xml">org.jetbrains.plugins.terminal</depends>
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="Cargo" anchor="right" icon="/icons/cargo.svg" doNotActivateOnStart="true"
                     factoryClass="io.github.rustsupport.cargo.CargoToolWindowFactory"/>
