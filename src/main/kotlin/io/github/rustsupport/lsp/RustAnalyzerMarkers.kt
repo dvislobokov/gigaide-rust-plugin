@@ -378,13 +378,22 @@ object RustTargets {
 
     private val DERIVE = Regex("""^\s*#\[\s*derive\s*\(""")
 
+    /** The derives of the compiler: rust-analyzer gives their impls the name in the attribute, not the whole item. */
+    private val BUILTIN_DERIVES = setOf("Clone", "Copy", "Debug", "Default", "Hash", "PartialEq", "Eq", "PartialOrd", "Ord")
+
     /**
-     * `#[derive(Debug)]` for a place on the name [column] of [line] in a derive: the impls a derive makes have no source of their own,
-     * and rust-analyzer gives each the name of its trait in the attribute, so the whole line would be the same for all of them (seen by a
-     * user: three `#[derive(Debug, Clone, Deserialize)]`). Null for any other place.
+     * `#[derive(Debug)]` for the place of an impl made by a derive on [line]: such impls have no source of their own, so the whole line
+     * would be the same for all of them (seen by a user: three `#[derive(Debug, Clone, Deserialize)]`). rust-analyzer gives an impl of a
+     * builtin derive the name of its trait in the attribute ([column] on it), and one of a proc macro (`Serialize` of serde) the whole
+     * item from its `#` (seen in VS Code as well): that one is told by the derives of the list that are not builtin. Null for any other place.
      */
     fun derived(line: String, column: Int): String? {
         val list = DERIVE.find(line) ?: return null
+        if (column < line.length && line[column] == '#' && line.substring(0, column).isBlank()) {
+            val names = line.substring(list.range.last + 1).substringBefore(')').split(',').map { it.trim() }.filter { it.isNotEmpty() }
+            val procMacros = names.filter { it.substringAfterLast("::") !in BUILTIN_DERIVES }
+            return procMacros.takeIf { it.isNotEmpty() }?.joinToString(", ", "#[derive(", ")]")
+        }
         if (column < list.range.last + 1 || column >= line.length || !Character.isJavaIdentifierPart(line[column])) return null
         var start = column
         while (start > 0 && (Character.isJavaIdentifierPart(line[start - 1]) || line[start - 1] == ':')) start--
