@@ -8,3 +8,4 @@ out/
 playground/target/
 .claude/settings.local.json
 .claude/worktrees/
+.serena/
