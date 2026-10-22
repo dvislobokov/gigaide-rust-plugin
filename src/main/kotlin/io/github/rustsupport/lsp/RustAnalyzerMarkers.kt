@@ -344,6 +344,7 @@ object RustTargets {
 
     fun elements(project: Project, places: List<RustAnalyzer.Place>): List<PsiElement> =
         places.mapNotNull { place -> ReadAction.compute<PsiElement?, RuntimeException> { if (project.isDisposed) null else RustAnalyzer.element(project, place) } }
+            .distinct() // the impls of several proc macro derives share one place: one line for them
 
     /** The project, file and position of a token. Needs read access. */
     fun at(element: PsiElement): Triple<Project, VirtualFile, Position>? {

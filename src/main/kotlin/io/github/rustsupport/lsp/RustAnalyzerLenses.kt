@@ -42,7 +42,8 @@ class RustAnalyzerLenses : LspCodeLensSupport() {
     override fun codeLensClicked(lspClient: LspClient, contextFile: VirtualFile, command: Command, event: MouseEvent?) {
         if (command.command != RustLenses.SHOW_REFERENCES) return super.codeLensClicked(lspClient, contextFile, command, event)
         val project = lspClient.project
-        val targets = RustLenses.locations(command.arguments.orEmpty()).mapNotNull { target -> element(lspClient, target) }
+        // one line per place: the impls of several proc macro derives (Serialize, Deserialize) all have the whole item, the same token
+        val targets = RustLenses.locations(command.arguments.orEmpty()).mapNotNull { target -> element(lspClient, target) }.distinct()
         if (targets.isEmpty()) return
         val title = if (RustLenses.isImplementations(command.title)) "Implementations" else "Usages"
         if (event != null) RustTargets.navigator(targets).navigate(event, title, project)
