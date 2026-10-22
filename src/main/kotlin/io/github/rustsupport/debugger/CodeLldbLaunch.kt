@@ -38,8 +38,12 @@ object CodeLldbLaunch {
      * `launch` of CodeLLDB. No `stdio`: with `terminal: console` the program inherits the standard streams of the adapter (seen with a
      * probe), which the plugin reads into the console of the session, the input included; the protocol goes over a socket for that.
      * `sourceMap` maps `/rustc/<commit>` of the debug info of std onto the `rust-src` sources, so frames of std open in the editor.
+     * [initCommands]: LLDB commands before the target is made; [stopOnEntry]: a stop once the program is loaded ([RustLineLocations]).
      */
-    fun arguments(name: String, program: String, args: List<String>, cwd: String, env: Map<String, String>, rustc: RustcInfo?): JsonObject {
+    fun arguments(
+        name: String, program: String, args: List<String>, cwd: String, env: Map<String, String>, rustc: RustcInfo?,
+        initCommands: List<String> = emptyList(), stopOnEntry: Boolean = false,
+    ): JsonObject {
         val sources = rustc?.stdSources()
         val sourceMap = rustc?.commitHash?.takeIf { sources != null }?.let { mapOf("/rustc/$it" to sources) }
         return json(
@@ -51,9 +55,10 @@ object CodeLldbLaunch {
             "cwd" to cwd,
             "env" to env.takeIf { it.isNotEmpty() },
             "terminal" to "console",
-            "stopOnEntry" to false,
+            "stopOnEntry" to stopOnEntry,
             "sourceLanguages" to listOf("rust"),
             "sourceMap" to sourceMap,
+            "initCommands" to initCommands.takeIf { it.isNotEmpty() },
         )
     }
 

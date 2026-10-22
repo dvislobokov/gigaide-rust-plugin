@@ -2,6 +2,7 @@ package io.github.rustsupport.debugger
 
 import com.google.gson.JsonObject
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
@@ -15,9 +16,13 @@ import com.intellij.xdebugger.breakpoints.XLineBreakpoint
 import com.intellij.xdebugger.breakpoints.XLineBreakpointType
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import io.github.rustsupport.lang.RustFileType
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import javax.swing.Icon
+
+private val LOG = logger<RustLineBreakpointHandler>()
 
 // --- line breakpoints ---
 
@@ -65,6 +70,15 @@ class RustLineBreakpointHandler(private val process: RustDebugProcess) : XBreakp
     private val byId = ConcurrentHashMap<Int, RustLineBreakpoint>()
     /** Run to Cursor: file -> the 0-based line of a breakpoint of one stop. */
     private val temporary = ConcurrentHashMap<String, Int>()
+    /** File -> what its last `setBreakpoints` made, for [locate]. */
+    private val sentLines = ConcurrentHashMap<String, List<SentLine>>()
+    /** Ids of the instruction breakpoints of [locate]. */
+    private val pieceIds = ConcurrentHashMap.newKeySet<Int>()
+    @Volatile private var loaded = false
+    private var locating: CompletableFuture<*> = CompletableFuture.completedFuture(null)
+
+    /** A breakpoint of `setBreakpoints`: its id, its 1-based line, the breakpoint of the IDE (none for Run to Cursor). */
+    private class SentLine(val id: Int, val line: Int, val breakpoint: RustLineBreakpoint?)
 
     override fun registerBreakpoint(breakpoint: RustLineBreakpoint) {
         val path = RustDebugProcess.pathOf(breakpoint.fileUrl)
@@ -102,8 +116,53 @@ class RustLineBreakpointHandler(private val process: RustDebugProcess) : XBreakp
 
     /** `breakpoint` event: CodeLLDB has resolved (or moved) a breakpoint after the fact, when a library is loaded. */
     fun update(breakpoint: JsonObject) {
-        val ide = breakpoint.int("id")?.let(byId::get) ?: return
+        val id = breakpoint.int("id") ?: return
+        if (id in pieceIds) return
+        val ide = byId[id] ?: return
         mark(ide, breakpoint)
+    }
+
+    /**
+     * The pieces of code of the lines that LLDB has not put the breakpoints on (async blocks, see [RustLineLocations]), as instruction
+     * breakpoints: all of them at once, as `setInstructionBreakpoints` replaces them all. From the stop of the entry on, when the program
+     * is loaded, and again after each `setBreakpoints`; one at a time, so an older answer does not win over a newer one.
+     */
+    fun locate(): CompletableFuture<*> {
+        val out = process.lineLocations ?: return CompletableFuture.completedFuture(null)
+        loaded = true
+        synchronized(this) {
+            locating = locating.handle { _, _ -> null }.thenCompose { locateNow(out) }
+            return locating
+        }
+    }
+
+    private fun locateNow(out: Path): CompletableFuture<*> {
+        val sent = sentLines.values.flatten()
+        val bySentId = sent.associateBy { it.id }
+        val command = RustLineLocations.command(out, sent.map { it.id to it.line })
+        return process.connection.request("evaluate", json("expression" to command, "context" to "repl"), RustDebugProcess.REQUEST_TIMEOUT_MS)
+            .thenCompose {
+                val pieces = RustLineLocations.parse(runCatching { Files.readString(out) }.getOrDefault("")).mapNotNull { (id, address) ->
+                    bySentId[id]?.let { it to address }
+                }
+                val list = pieces.map { (line, address) ->
+                    buildMap {
+                        put("instructionReference", address)
+                        line.breakpoint?.conditionExpression?.expression?.trim()?.takeIf { it.isNotEmpty() }?.let { put("condition", it) }
+                    }
+                }
+                process.connection.request("setInstructionBreakpoints", json("breakpoints" to list), RustDebugProcess.REQUEST_TIMEOUT_MS)
+                    .thenAccept { answer ->
+                        pieceIds.forEach(byId::remove)
+                        pieceIds.clear()
+                        answer.objects("breakpoints").zip(pieces).forEach { (dap, piece) ->
+                            val id = dap.int("id") ?: return@forEach
+                            pieceIds.add(id)
+                            piece.first.breakpoint?.let { byId[id] = it }
+                        }
+                    }
+            }
+            .exceptionally { error -> LOG.info("Line breakpoints in async code: ${RustDebugProcess.errorText(error)}"); null }
     }
 
     private fun send(path: String): CompletableFuture<*> {
@@ -112,11 +171,18 @@ class RustLineBreakpointHandler(private val process: RustDebugProcess) : XBreakp
         val list = breakpoints.map { breakpointJson(it.line, it.conditionExpression?.expression) } + listOfNotNull(extra?.let { breakpointJson(it, null) })
         val source = json("path" to path, "name" to path.substringAfterLast('/').substringAfterLast('\\'))
         return process.connection.request("setBreakpoints", json("source" to source, "breakpoints" to list), RustDebugProcess.REQUEST_TIMEOUT_MS)
-            .thenAccept { answer ->
-                answer.objects("breakpoints").zip(breakpoints).forEach { (dap, ide) ->
+            .thenCompose { answer ->
+                val answered = answer.objects("breakpoints")
+                answered.zip(breakpoints).forEach { (dap, ide) ->
                     dap.int("id")?.let { byId[it] = ide }
                     mark(ide, dap)
                 }
+                if (process.lineLocations == null) return@thenCompose CompletableFuture.completedFuture(null)
+                // the breakpoint of Run to Cursor is the last one sent, without a breakpoint of the IDE
+                sentLines[path] = answered.zip(list).mapIndexedNotNull { i, (dap, sent) ->
+                    dap.int("id")?.let { SentLine(it, sent.getValue("line") as Int, breakpoints.getOrNull(i)) }
+                }
+                if (loaded) locate() else CompletableFuture.completedFuture(null)
             }
             .exceptionally { error -> breakpoints.forEach { process.session.setBreakpointInvalid(it, RustDebugProcess.errorText(error)) }; null }
     }

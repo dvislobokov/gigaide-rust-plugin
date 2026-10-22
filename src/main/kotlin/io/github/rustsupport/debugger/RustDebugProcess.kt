@@ -38,6 +38,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.OutputStream
 import java.io.Writer
+import java.nio.file.Files
 import java.nio.file.Path
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -76,6 +77,12 @@ class RustDebugProcess(
 
     @Volatile var stoppedThreadId: Int? = null
         private set
+
+    /** The file `rust_line_locations.py`, loaded into the adapter, answers in; null without it ([RustLineLocations]). */
+    @Volatile var lineLocations: Path? = null
+        private set
+    /** The stop of `stopOnEntry` is still to come: the IDE does not show it, it sets the pieces of the line breakpoints and resumes. */
+    private val entryStop = AtomicBoolean()
 
     @Volatile private var exitCode: Int? = null
     private val shutdown = AtomicBoolean()
@@ -117,9 +124,14 @@ class RustDebugProcess(
             val connection = DapConnection(started.input, started.output, this, newProtocolTrace())
             dap = connection
             print("> $adapterPath (pid ${started.pid})\n> $program ${spec.programArguments.joinToString(" ")}\n", ProcessOutputTypes.SYSTEM)
+            val script = if (RustLineLocations.enabled) RustLineLocations.script() else null
+            lineLocations = script?.let { runCatching { Files.createTempFile("rust-line-locations", ".txt") }.getOrNull() }
+            val initCommands = script?.takeIf { lineLocations != null }?.let(RustLineLocations::initCommands).orEmpty()
+            entryStop.set(initCommands.isNotEmpty())
+            val launch = CodeLldbLaunch.arguments(name, program, spec.programArguments, spec.workingDirectory, spec.environment, rustc, initCommands, entryStop.get())
             connection.start()
             connection.request("initialize", CodeLldbLaunch.initializeArguments(), REQUEST_TIMEOUT_MS)
-                .thenCompose { connection.request("launch", CodeLldbLaunch.arguments(name, program, spec.programArguments, spec.workingDirectory, spec.environment, rustc)) }
+                .thenCompose { connection.request("launch", launch) }
                 .whenComplete { _, error -> if (error != null && !shutdown.get()) startFailed(errorText(error)) }
         } catch (e: Exception) {
             if (!shutdown.get()) startFailed(e.message ?: e.javaClass.simpleName)
@@ -155,6 +167,7 @@ class RustDebugProcess(
             "initialized" -> configure()
             "process" -> body.get("systemProcessId")?.takeIf { it.isJsonPrimitive }?.asLong?.let { monitored?.programPid = it }
             "stopped" -> {
+                if (entryStop.compareAndSet(true, false)) return entryStopped(body)
                 monitored?.paused = true
                 stoppedEvent(body)
             }
@@ -179,6 +192,14 @@ class RustDebugProcess(
             .handle { _, _ -> null }
             .thenCompose { connection.request("configurationDone") }
             .exceptionally { error -> LOG.info("configurationDone: ${errorText(error)}"); null }
+    }
+
+    /** The program is loaded (on Windows this stop comes as "exception"): the pieces of the line breakpoints, then on, unseen. */
+    private fun entryStopped(body: JsonObject) {
+        lineBreakpoints.locate()
+            .handle { _, _ -> null }
+            .thenCompose { connection.request("continue", json("threadId" to (body.int("threadId") ?: 0)), REQUEST_TIMEOUT_MS) }
+            .exceptionally { error -> LOG.info("Cannot resume after the entry: ${errorText(error)}"); null }
     }
 
     private fun stoppedEvent(body: JsonObject) {
@@ -296,6 +317,7 @@ class RustDebugProcess(
         } finally {
             dap?.close()
             adapter?.stop()
+            lineLocations?.let { runCatching { Files.deleteIfExists(it) } }
             handler.finish(exitCode)
             stopped.setResult(Unit)
         }

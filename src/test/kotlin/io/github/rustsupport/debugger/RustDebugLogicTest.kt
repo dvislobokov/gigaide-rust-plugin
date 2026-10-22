@@ -107,4 +107,35 @@ class RustDebugLogicTest {
         assertFalse(runner.canRun("Run", FakeConfiguration(spec)))
         assertFalse("cargo check cannot be debugged", runner.canRun("Debug", FakeConfiguration(null)))
     }
+
+    @Test
+    fun `line locations of async code are asked for with LLDB quoting`() {
+        assertEquals(
+            """rust-line-locations "C:/Users/My Name/AppData/Local/Temp/rust-line-locations1.txt" 3:28 5:30""",
+            RustLineLocations.command(java.nio.file.Path.of("C:\\Users\\My Name\\AppData\\Local\\Temp\\rust-line-locations1.txt"), listOf(3 to 28, 5 to 30)),
+        )
+        assertEquals(
+            listOf("""command script import "C:/Users/me/rust-support/lldb/rust_line_locations.py""""),
+            RustLineLocations.initCommands(java.nio.file.Path.of("C:\\Users\\me\\rust-support\\lldb\\rust_line_locations.py")),
+        )
+    }
+
+    @Test
+    fun `answer of the line locations script`() {
+        assertEquals(
+            listOf(2 to "0x7ff605ac5b68", 4 to "0x7ff605ac5dc3"),
+            RustLineLocations.parse("2 0x7ff605ac5b68\r\n4 0x7ff605ac5dc3\n\nnoise\n5 nothing\n"),
+        )
+        assertEquals(emptyList<Pair<Int, String>>(), RustLineLocations.parse(""))
+    }
+
+    @Test
+    fun `init commands and the entry stop go into launch only when asked`() {
+        val with = CodeLldbLaunch.arguments("n", "p.exe", emptyList(), "C:\\w", emptyMap(), null, listOf("command script import \"x.py\""), stopOnEntry = true)
+        assertEquals("""["command script import \"x.py\""]""", with.get("initCommands").toString())
+        assertTrue(with.get("stopOnEntry").asBoolean)
+        val without = CodeLldbLaunch.arguments("n", "p.exe", emptyList(), "C:\\w", emptyMap(), null)
+        assertNull(without.get("initCommands"))
+        assertFalse(without.get("stopOnEntry").asBoolean)
+    }
 }
