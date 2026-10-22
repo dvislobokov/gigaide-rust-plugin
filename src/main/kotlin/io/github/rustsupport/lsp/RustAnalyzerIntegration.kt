@@ -136,11 +136,17 @@ class RustAnalyzerDescriptor(project: Project) : ProjectWideLspClientDescriptor(
 
     /**
      * `$/progress` of the server goes to the status bar as well, on its way to the platform; its messages go to the log window
-     * ([LoggingNotificationsHandler]); `experimental/serverStatus` is taken by [RustAnalyzerLsp4jClient].
+     * ([LoggingNotificationsHandler]); `experimental/serverStatus` is taken by [RustAnalyzerLsp4jClient]. The refreshes of the semantic
+     * tokens are [RustAnalyzerSemanticRefresh]'s.
      */
     override fun createLsp4jClient(handler: LspServerNotificationsHandler): Lsp4jClient {
         val log = RustAnalyzerLog.getInstance(project)
-        return RustAnalyzerLsp4jClient(LoggingNotificationsHandler(ProgressTrackingHandler(handler, RustAnalyzerServerState.getInstance(project)), log), log::serverStatus)
+        val semanticRefresh = RustAnalyzerSemanticRefresh(project)
+        val handlers = LoggingNotificationsHandler(ProgressTrackingHandler(semanticRefresh.handler(handler), RustAnalyzerServerState.getInstance(project)), log)
+        return RustAnalyzerLsp4jClient(handlers) { status ->
+            log.serverStatus(status)
+            semanticRefresh.serverStatus(status.quiescent)
+        }
     }
 
     /** The requests of rust-analyzer beyond the protocol (runnables, expand macro, parent module, join lines, on enter, views) on the same connection. */
