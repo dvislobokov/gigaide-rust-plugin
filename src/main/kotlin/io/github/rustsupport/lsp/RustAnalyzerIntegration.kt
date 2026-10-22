@@ -289,8 +289,11 @@ object RustAnalyzerOptions {
     )
 }
 
-/** A Rust project gets rust-analyzer as soon as it is opened. */
-class RustAnalyzerStartupActivity : ProjectActivity {
+/**
+ * A Rust project gets rust-analyzer as soon as it is opened. Dumb aware: a startup activity that is not waits for the indexing of the
+ * IDE (seen live: the server started right after "exit dumb mode"), which rust-analyzer does not need.
+ */
+class RustAnalyzerStartupActivity : ProjectActivity, DumbAware {
     override suspend fun execute(project: Project) = withContext(Dispatchers.IO) { RustAnalyzerIntegrationProvider.startForProject(project) }
 }
 
