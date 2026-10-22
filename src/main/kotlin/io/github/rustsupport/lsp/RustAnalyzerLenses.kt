@@ -10,6 +10,7 @@ import com.intellij.platform.lsp.api.LspClient
 import com.intellij.platform.lsp.api.customization.LspCodeLensSupport
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
+import com.intellij.ui.awt.RelativePoint
 import io.github.rustsupport.settings.RustSettings
 import org.eclipse.lsp4j.CodeLens
 import org.eclipse.lsp4j.Command
@@ -47,8 +48,10 @@ class RustAnalyzerLenses : LspCodeLensSupport() {
         }
         if (targets.isEmpty()) return
         val title = if (RustLenses.isImplementations(command.title)) "Implementations" else "Usages"
-        if (event != null) RustTargets.navigator(targets).navigate(event, title, project)
-        else RustTargets.navigator(targets).createPopup(project, title).showInFocusCenter()
+        // a popup even for one place: `navigate` goes there at once, and the attribute of a derive is the line above the click (seen
+        // by a user: "nothing happens")
+        val popup = RustTargets.navigator(targets).createPopup(project, title)
+        if (event != null) popup.show(RelativePoint(event)) else popup.showInFocusCenter()
     }
 
     private fun element(client: LspClient, target: RustAnalyzerProtocol.Target): PsiElement? = ReadAction.compute<PsiElement?, RuntimeException> {
