@@ -1,5 +1,6 @@
 package io.github.rustsupport.debugger
 
+import com.google.gson.JsonParser
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
 import com.intellij.notification.NotificationAction
@@ -37,17 +38,44 @@ private val LOG = logger<CodeLldbInstaller>()
  * [HttpRequests] (the proxy settings of the IDE), in a task that can be cancelled; the VSIX is unpacked here, by `java.util.zip`.
  */
 object CodeLldbInstaller {
-    /** Debug was started and no CodeLLDB is found: a balloon with the two ways out; [onReady] starts the debug again. */
+    /** Debug was started and no adapter is found: a balloon with the ways out; [onReady] starts the debug again. */
     fun notifyMissing(project: Project, onReady: () -> Unit) {
+        val settings = ShowSettingsUtil.getInstance()
+        if (RustDebuggerSettings.getInstance().adapter == RustDebugAdapterChoice.LLDB_DAP) {
+            group().createNotification("lldb-dap is not found", "The debugger is set to lldb-dap, and it is not at the path of the settings, on PATH or in Xcode or LLVM.", NotificationType.WARNING)
+                .addAction(NotificationAction.createSimpleExpiring("Choose lldb-dap...") { chooseLldbDap(project, onReady) })
+                .addAction(NotificationAction.createSimple("Settings...") { settings.showSettingsDialog(project, RustDebuggerConfigurable::class.java) })
+                .notify(project)
+            return
+        }
         val asset = CodeLldbRelease.currentAsset()
-        val text = if (asset != null) "Debugging Rust needs the CodeLLDB debug adapter. It was not found in the settings, in VS Code, Cursor or VSCodium extensions, or among the downloads."
-        else "Debugging Rust needs the CodeLLDB debug adapter, and its releases have no build for this platform: choose an existing codelldb."
-        val notification = group().createNotification("CodeLLDB is not found", text, NotificationType.WARNING)
+        val text = if (asset != null) "Debugging Rust needs the CodeLLDB debug adapter or lldb-dap of LLVM. Neither was found in the settings, in VS Code, Cursor or VSCodium extensions, among the downloads, on PATH or in Xcode or LLVM."
+        else "Debugging Rust needs a debug adapter, and the releases of CodeLLDB have no build for this platform: choose an existing codelldb or lldb-dap."
+        val notification = group().createNotification("No debug adapter is found", text, NotificationType.WARNING)
         if (asset != null) notification.addAction(NotificationAction.createSimpleExpiring("Download CodeLLDB...") { offerDownload(project, onReady) })
         notification
+            .addAction(NotificationAction.createSimpleExpiring("Install CodeLLDB from VSIX...") { installFromVsix(project, onReady) })
             .addAction(NotificationAction.createSimpleExpiring("Choose existing codelldb...") { chooseExisting(project, onReady) })
-            .addAction(NotificationAction.createSimple("Settings...") { ShowSettingsUtil.getInstance().showSettingsDialog(project, RustDebuggerConfigurable::class.java) })
+            .addAction(NotificationAction.createSimpleExpiring("Choose lldb-dap...") { chooseLldbDap(project, onReady) })
+            .addAction(NotificationAction.createSimple("Settings...") { settings.showSettingsDialog(project, RustDebuggerConfigurable::class.java) })
             .notify(project)
+    }
+
+    /** An lldb-dap chosen by hand; a debugger set to CodeLLDB is switched to it, as that is what the user has just picked. */
+    fun chooseLldbDap(project: Project?, onReady: (() -> Unit)?) {
+        val descriptor = FileChooserDescriptorFactory.singleFileOrDir().withTitle("Choose lldb-dap")
+            .withDescription("The lldb-dap executable of Xcode or LLVM, or its folder")
+        FileChooser.chooseFile(descriptor, project, null) { file ->
+            val location = LldbDapLocator.default().fromSettings(file.path)
+            if (location == null) {
+                Messages.showErrorDialog(project, "No lldb-dap executable in ${file.presentableUrl}", "Choose lldb-dap")
+                return@chooseFile
+            }
+            val settings = RustDebuggerSettings.getInstance()
+            settings.lldbDapPath = location.path.toString()
+            if (settings.adapter == RustDebugAdapterChoice.CODELLDB) settings.adapter = RustDebugAdapterChoice.LLDB_DAP
+            onReady?.invoke()
+        }
     }
 
     /** The confirmation, then the download in the background. On the EDT. */
@@ -79,6 +107,63 @@ object CodeLldbInstaller {
             onReady?.invoke()
         }
     }
+
+    /**
+     * A VSIX the user has (the Marketplace, Open VSX, a mirror of the releases inside a closed network): checked, then unpacked as a
+     * download is, with no network at all. A version other than [CodeLldbRelease.VERSION] goes into the settings, as only that one is
+     * looked for among the downloads.
+     */
+    fun installFromVsix(project: Project?, onReady: (() -> Unit)?) {
+        val descriptor = FileChooserDescriptorFactory.singleFile().withExtensionFilter("VSIX", "vsix").withTitle("Install CodeLLDB from VSIX")
+            .withDescription("The VSIX of this platform: ${CodeLldbRelease.currentAsset()?.fileName ?: "CodeLLDB has no release for it"}")
+        FileChooser.chooseFile(descriptor, project, null) { file ->
+            val vsix = Path.of(file.path)
+            object : Task.Backgroundable(project, "Installing CodeLLDB from ${file.name}", true) {
+                override fun run(indicator: ProgressIndicator) {
+                    val root = CodeLldbLocator.downloadRoot()
+                    var staging: Path? = null
+                    try {
+                        val contents = inspectVsix(vsix)
+                        require(contents.hasAdapter) { "${file.name} has no extension/adapter/${CodeLldbLocator.adapterName()}: a VSIX of another platform, or not CodeLLDB" }
+                        val version = contents.version ?: "vsix"
+                        staging = root.resolve("$version.tmp")
+                        Files.createDirectories(root)
+                        NioFiles.deleteRecursively(staging)
+                        unpack(vsix, staging, indicator, version)
+                        val target = root.resolve(version)
+                        NioFiles.deleteRecursively(target)
+                        Files.move(staging, target, StandardCopyOption.ATOMIC_MOVE)
+                        LOG.info("CodeLLDB $version installed from $vsix into $target")
+                        val adapter = target.resolve("adapter").resolve(CodeLldbLocator.adapterName())
+                        ApplicationManager.getApplication().invokeLater({
+                            if (version != CodeLldbRelease.VERSION) RustDebuggerSettings.getInstance().codelldbPath = adapter.toString()
+                            onReady?.invoke()
+                        }, ModalityState.any())
+                        group().createNotification("CodeLLDB $version is installed", target.toString(), NotificationType.INFORMATION).notify(project)
+                    } catch (e: ProcessCanceledException) {
+                        throw e
+                    } catch (e: Exception) {
+                        LOG.warn("Cannot install CodeLLDB from $vsix", e)
+                        group().createNotification("CodeLLDB has not been installed", (e.message ?: e.javaClass.simpleName).take(500), NotificationType.ERROR).notify(project)
+                    } finally {
+                        staging?.let { runCatching { NioFiles.deleteRecursively(it) } }
+                    }
+                }
+            }.queue()
+        }
+    }
+
+    data class VsixContents(val version: String?, val hasAdapter: Boolean)
+
+    /** The version of `extension/package.json`, and whether the adapter of this OS is inside (a VSIX of another platform has the other one). */
+    fun inspectVsix(vsix: Path, windows: Boolean = SystemInfo.isWindows): VsixContents = ZipFile(vsix.toFile()).use { zip ->
+        val version = zip.getEntry("extension/package.json")?.let { entry ->
+            runCatching { JsonParser.parseString(zip.getInputStream(entry).use { String(it.readAllBytes(), Charsets.UTF_8) }).asJsonObject.get("version")?.asString }.getOrNull()
+        }?.takeIf { VERSION_TEXT.matches(it) }
+        VsixContents(version, zip.getEntry("extension/adapter/${CodeLldbLocator.adapterName(windows)}") != null)
+    }
+
+    private val VERSION_TEXT = Regex("""\d+(\.\d+)*""")
 
     private fun download(project: Project?, asset: CodeLldbRelease.Asset, onReady: (() -> Unit)?) {
         object : Task.Backgroundable(project, "Downloading CodeLLDB ${CodeLldbRelease.VERSION}", true) {
@@ -121,7 +206,7 @@ object CodeLldbInstaller {
      * The parts of the VSIX the adapter needs (see [CodeLldbRelease.unpackedPath]) into [target], with the marker of a complete install
      * last. A VSIX keeps no Unix permissions, so the binaries are made executable here.
      */
-    fun unpack(vsix: Path, target: Path, indicator: ProgressIndicator? = null) {
+    fun unpack(vsix: Path, target: Path, indicator: ProgressIndicator? = null, version: String = CodeLldbRelease.VERSION) {
         ZipFile(vsix.toFile()).use { zip ->
             for (entry in zip.entries()) {
                 indicator?.checkCanceled()
@@ -134,7 +219,7 @@ object CodeLldbInstaller {
                 if (!SystemInfo.isWindows && (relative.startsWith("adapter/") || relative.startsWith("lldb/bin/"))) File(file.toString()).setExecutable(true)
             }
         }
-        Files.writeString(target.resolve(CodeLldbLocator.INSTALLED_MARKER), CodeLldbRelease.VERSION)
+        Files.writeString(target.resolve(CodeLldbLocator.INSTALLED_MARKER), version)
     }
 
     private fun group() = NotificationGroupManager.getInstance().getNotificationGroup(RustToolchainInstaller.NOTIFICATION_GROUP)

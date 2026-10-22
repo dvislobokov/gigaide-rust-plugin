@@ -39,16 +39,23 @@
   (`rustup component add` по кнопке, cargo, rust-analyzer) — можно.
 
 ## Отладчик (`io.github.rustsupport.debugger`)
-- Свой DAP-клиент на XDebugger API (как в go/dotnet-плагинах; `intellij.platform.dap` в GIGA нет), адаптер — **CodeLLDB**.
+- Свой DAP-клиент на XDebugger API (как в go/dotnet-плагинах; `intellij.platform.dap` в GIGA нет), адаптер — **CodeLLDB** или **lldb-dap** LLVM (`RustDebugAdapters`: Auto / CodeLLDB / lldb-dap в настройках Debugger).
   Сессия — только через `XDebuggerManager.newSessionBuilder(...)`, раннер всегда отдаёт `RunContentDescriptor` (иначе GIGA не строит UI).
 - Запуск: `RustDebugRunner` для `RustDebuggableConfiguration` → `RustDebugProcess`: `cargo <build> --message-format=json` (вывод в консоль
   сессии), exe из `compiler-artifact` (`CargoBuild`), потом `codelldb --connect <port>` и `initialize`/`launch` (`CodeLldbLaunch`).
-- Транспорт — TCP (адаптер подключается к порту IDE), **не stdio**: при `terminal: console` программа наследует stdout/stderr адаптера
+- Транспорт CodeLLDB — TCP (адаптер подключается к порту IDE), **не stdio**: при `terminal: console` программа наследует stdout/stderr адаптера
   (проверено зондом) и по stdio ломала бы framing. stdout/stderr адаптера = вывод программы, stdin адаптера = её ввод.
 - `sourceLanguages: ["rust"]` — это `--settings` адаптера (там же `scriptConfig.lang.rust.sysroot`, иначе rust.py ищет rustc в своём PATH);
   `evaluate` — с контекстом `watch`/`hover`, не `repl` (в CodeLLDB это команды LLDB).
 - CodeLLDB: путь из настроек → расширение VS Code / Insiders / Cursor / VSCodium (новейшее) → скачанный в `<system>/rust-support/codelldb/<ver>`.
   **Сам ничего не скачивает**: только по кнопке пользователя, с подтверждением (версия, URL, размер), через `HttpRequests`, распаковка `java.util.zip`.
+  Без сети — «Install from VSIX...» (`CodeLldbInstaller.installFromVsix`).
+- lldb-dap: путь из настроек → PATH → Xcode / CommandLineTools / Homebrew llvm / `/usr/lib/llvm-*` / `C:\Program Files\LLVM`. Транспорт — stdio
+  (вывод программы приходит событиями `output`, ввода у программы нет); форматтеры Rust — `initCommands` как у `rust-lldb`
+  (`lldb_lookup.py` + `lldb_commands`); паника — `setFunctionBreakpoints` на `rust_panic`; LLDB-команды в `repl` — с префиксом `` ` ``.
+- **Пути ко всем бинарям настраиваются в IDE** (cargo, rustc, rustfmt, cargo-clippy, rustup, rust-analyzer, codelldb, lldb-dap): у
+  пользователей бывают свои сборки инструментов (например, из их VS Code-плагина) вне PATH и `~/.cargo/bin`. Новый внешний бинарь —
+  сразу с полем пути в настройках. `RustToolchain.environment` передаёт заданные пути дальше (`RUSTC`, `RUSTFMT`, их папки первыми в PATH).
 - **Прокси и зеркала реестра.** Реестр крейтов может быть за системным/корпоративным прокси или заменён зеркалом
   (`~/.cargo/config.toml`: `[http] proxy`, `[source.crates-io] replace-with`, `[registries]`; env `HTTPS_PROXY`/`CARGO_HTTP_PROXY`).
   Данные о крейтах (версии, features, описание) — через сам `cargo` (`cargo info`, `cargo metadata`, `cargo add`): он применяет

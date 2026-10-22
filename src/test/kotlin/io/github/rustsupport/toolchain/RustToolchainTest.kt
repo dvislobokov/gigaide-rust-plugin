@@ -36,6 +36,8 @@ class RustToolchainTest {
         assertEquals(listOf(bin, "/a", "/usr/local/bin").joinToString(sep), RustToolchain.withDirectories("/a", listOf("/usr/local/bin")))
         assertEquals(listOf("/a", bin).joinToString(sep), RustToolchain.withDirectories(listOf("/a", bin).joinToString(sep), listOf("/a")))
         assertEquals(bin, RustToolchain.withDirectories(null))
+        // the directories of the tools in the settings go before ~/.cargo/bin, so that cargo runs their rustc and cargo-clippy
+        assertEquals(listOf("/opt/rust/bin", bin, "/a").joinToString(sep), RustToolchain.withDirectories(listOf("/a", "/opt/rust/bin").joinToString(sep), before = listOf("/opt/rust/bin")))
     }
 
     @Test

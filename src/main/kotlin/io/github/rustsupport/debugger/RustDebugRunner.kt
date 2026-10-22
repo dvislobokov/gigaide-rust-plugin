@@ -24,8 +24,8 @@ private val LOG = logger<RustDebugRunner>()
 
 /**
  * Debug of a configuration that can be debugged ([RustDebuggableConfiguration]): the session builds the program with cargo and
- * starts it under CodeLLDB, see [RustDebugProcess]. Without CodeLLDB nothing starts: a balloon offers the download or an existing one,
- * and starts the debug again once there is one.
+ * starts it under CodeLLDB or lldb-dap ([RustDebugAdapters]), see [RustDebugProcess]. Without an adapter nothing starts: a balloon offers
+ * the download of CodeLLDB or an existing adapter, and starts the debug again once there is one.
  */
 class RustDebugRunner : AsyncProgramRunner<RunnerSettings>() {
     override fun getRunnerId(): String = "RustDebugRunner"
@@ -42,18 +42,18 @@ class RustDebugRunner : AsyncProgramRunner<RunnerSettings>() {
         val spec = configuration.debugLaunchSpec()
             ?: return result.apply { setError(ExecutionException("${configuration.name} cannot be debugged: it does not build a program")) }
         ApplicationManager.getApplication().executeOnPooledThread {
-            val installation = runCatching { CodeLldbLocator.current() }.getOrNull()
+            val adapter = runCatching { RustDebugAdapters.current() }.getOrNull()
             ApplicationManager.getApplication().invokeLater({
                 if (project.isDisposed) return@invokeLater result.setResult(null)
-                if (installation == null) {
+                if (adapter == null) {
                     // nothing is downloaded by itself: the user chooses, then the debug starts again
                     CodeLldbInstaller.notifyMissing(project) { if (!project.isDisposed) ExecutionUtil.restart(environment) }
                     return@invokeLater result.setResult(null)
                 }
                 try {
-                    LOG.info("Debug of ${configuration.name} with ${installation.describe()} (${installation.adapter})")
+                    LOG.info("Debug of ${configuration.name} with ${adapter.description} (${adapter.path})")
                     val starter = object : XDebugProcessStarter() {
-                        override fun start(session: XDebugSession): XDebugProcess = RustDebugProcess(session, spec, configuration.name, installation.adapter)
+                        override fun start(session: XDebugSession): XDebugProcess = RustDebugProcess(session, spec, configuration.name, adapter)
                     }
                     // The session builder hands out the descriptor in both modes: XDebugSession.getRunContentDescriptor logs a SEVERE in the
                     // split debugger, and GIGA IDE, whose split frontend builds no UI, needs the descriptor to show the session at all.

@@ -26,11 +26,17 @@ enum class RustTool(val executable: String, val component: String?) {
     /** Where [find] takes the tool from. */
     fun locate(): RustToolLocation? = RustToolchain.locate(this, configuredPath(), RustToolchain.pathEnv(), RustToolchain.cargoHome())
 
-    internal fun configuredPath(): String? = when (this) {
-        RUST_ANALYZER -> RustSettings.getInstance().rustAnalyzerPath
-        CARGO -> RustSettings.getInstance().cargoPath
-        else -> null
-    }?.takeIf { it.isNotBlank() }
+    /** The path in Settings | Languages & Frameworks | Rust, or null. */
+    fun configuredPath(): String? = RustSettings.getInstance().let {
+        when (this) {
+            CARGO -> it.cargoPath
+            RUSTC -> it.rustcPath
+            RUSTUP -> it.rustupPath
+            RUST_ANALYZER -> it.rustAnalyzerPath
+            RUSTFMT -> it.rustfmtPath
+            CLIPPY -> it.clippyPath
+        }
+    }.trim().takeIf { it.isNotEmpty() }
 }
 
 enum class RustToolSource(val text: String) {
@@ -78,22 +84,40 @@ object RustToolchain {
         sources(tool, configured, pathEnv, cargoHome, windows).firstOrNull { File(it.path.toString()).canExecute() }
 
     /**
-     * A command line of [executable] with ~/.cargo/bin on PATH (the rustup proxies find the toolchain through it) and the directory of
-     * [executable] (cargo runs `rustc` from PATH, and a cargo found in [systemDirectories] has its rustc next to it).
+     * A command line of [executable] in the environment of [environment]: cargo, rust-analyzer and the tools they run find the tools of
+     * the settings, not only the ones of PATH.
      */
     fun commandLine(executable: File, workDirectory: String?, vararg args: String): GeneralCommandLine =
         GeneralCommandLine(executable.path, *args)
             .withWorkingDirectory(workDirectory?.let { Path.of(it) })
             .withParentEnvironmentType(GeneralCommandLine.ParentEnvironmentType.CONSOLE)
-            .withEnvironment("PATH", withDirectories(pathEnv(), listOfNotNull(executable.absoluteFile.parent)))
+            .withEnvironment(environment(executable))
 
-    /** [path] with ~/.cargo/bin first, then [after] at the end; nothing twice. */
-    fun withDirectories(path: String?, after: List<String> = emptyList()): String {
+    /**
+     * The variables of the toolchain for a process of [executable]. PATH: the directories of the tools set in the settings first (cargo
+     * runs `rustc` and `cargo-clippy` from PATH, `cargo-clippy` its `clippy-driver` from its own directory), then ~/.cargo/bin (the
+     * rustup proxies find the toolchain through it), then PATH, then the directory of [executable] (a cargo found in [systemDirectories]
+     * has its rustc next to it). `RUSTC` and `RUSTFMT` of the settings: cargo, `cargo fmt` and rust-analyzer run those over PATH.
+     */
+    fun environment(executable: File? = null): Map<String, String> = buildMap {
+        val configured = RustTool.entries.mapNotNull { it.configuredPath() }.mapNotNull { File(it).absoluteFile.parent }
+        put("PATH", withDirectories(pathEnv(), listOfNotNull(executable?.absoluteFile?.parent), before = configured))
+        RustTool.RUSTC.configuredPath()?.let { put("RUSTC", it) }
+        RustTool.RUSTFMT.configuredPath()?.let { put("RUSTFMT", it) }
+    }
+
+    /** [path] with [before] first, then ~/.cargo/bin, then [after] at the end; nothing twice. */
+    fun withDirectories(path: String?, after: List<String> = emptyList(), before: List<String> = emptyList()): String {
         val parts = path?.split(File.pathSeparatorChar).orEmpty().filter { it.isNotEmpty() }
-        fun has(list: List<String>, dir: String) = list.any { it.equals(dir, ignoreCase = SystemInfo.isWindows) }
+        val result = mutableListOf<String>()
+        fun add(dir: String) {
+            if (result.none { it.equals(dir, ignoreCase = SystemInfo.isWindows) }) result += dir
+        }
+        before.forEach(::add)
         val bin = cargoHome().resolve("bin").toString()
-        val result = (if (has(parts, bin)) parts else listOf(bin) + parts).toMutableList()
-        after.forEach { if (!has(result, it)) result += it }
+        if (parts.none { it.equals(bin, ignoreCase = SystemInfo.isWindows) }) add(bin)
+        parts.forEach(::add)
+        after.forEach(::add)
         return result.joinToString(File.pathSeparator)
     }
 

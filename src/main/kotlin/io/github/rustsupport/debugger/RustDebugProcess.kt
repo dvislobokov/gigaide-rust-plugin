@@ -49,7 +49,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 private val LOG = logger<RustDebugProcess>()
 
 /**
- * A debug session of a Rust program under CodeLLDB on the XDebugger API. The start, off the EDT: `cargo <build> --message-format=json`
+ * A debug session of a Rust program under CodeLLDB or lldb-dap ([RustDebugAdapter]) on the XDebugger API. The start, off the EDT: `cargo <build> --message-format=json`
  * with its output in the console of the session, the executable from its `compiler-artifact` messages, then the adapter, `initialize`,
  * `launch`, and on the `initialized` event the breakpoints and `configurationDone`.
  */
@@ -57,7 +57,7 @@ class RustDebugProcess(
     session: XDebugSession,
     private val spec: RustDebugLaunchSpec,
     private val name: String,
-    private val adapterPath: Path,
+    private val debugAdapter: RustDebugAdapter,
 ) : XDebugProcess(session), DapConnection.Listener {
     private val handler = DebuggeeProcessHandler()
     private val lineBreakpoints = RustLineBreakpointHandler(this)
@@ -65,12 +65,17 @@ class RustDebugProcess(
     private val editors = RustDebuggerEditorsProvider()
 
     @Volatile private var dap: DapConnection? = null
-    @Volatile private var adapter: CodeLldbAdapter? = null
+    @Volatile private var adapter: DebugAdapterProcess? = null
     @Volatile private var build: Process? = null
     @Volatile private var monitored: MonitorTarget? = null
 
     /** The connection; requests before the adapter is there end with [DapClosedException]. */
     val connection: DapConnection get() = dap ?: NOT_STARTED
+
+    val adapterKind: RustDebugAdapterKind get() = debugAdapter.kind
+
+    /** An LLDB command as `evaluate` in `repl` takes it: as it is for CodeLLDB, after the escape for lldb-dap. */
+    fun lldbCommand(command: String): String = if (adapterKind == RustDebugAdapterKind.LLDB_DAP) LldbDapLaunch.command(command) else command
 
     @Volatile var configured: Boolean = false
         private set
@@ -115,7 +120,10 @@ class RustDebugProcess(
             val program = choice.executable ?: return startFailed(choice.error ?: "nothing to debug")
 
             val rustc = rustcInfo()
-            val started = CodeLldbAdapter.start(adapterPath, CodeLldbLaunch.adapterSettings(rustc?.sysroot), spec.workingDirectory, ::print)
+            val started = when (adapterKind) {
+                RustDebugAdapterKind.CODELLDB -> DebugAdapterProcess.startCodeLldb(debugAdapter.path, CodeLldbLaunch.adapterSettings(rustc?.sysroot), spec.workingDirectory, ::print)
+                RustDebugAdapterKind.LLDB_DAP -> DebugAdapterProcess.startLldbDap(debugAdapter.path, spec.workingDirectory, ::print)
+            }
             adapter = started
             if (shutdown.get()) return started.stop(0)
             // the Rust Monitor follows the program under the adapter: its pid comes with the `process` event
@@ -123,14 +131,18 @@ class RustDebugProcess(
             if (monitored != null) RustProcessStartListener.openIfAsked(session.project)
             val connection = DapConnection(started.input, started.output, this, newProtocolTrace())
             dap = connection
-            print("> $adapterPath (pid ${started.pid})\n> $program ${spec.programArguments.joinToString(" ")}\n", ProcessOutputTypes.SYSTEM)
+            print("> ${debugAdapter.path} (pid ${started.pid})\n> $program ${spec.programArguments.joinToString(" ")}\n", ProcessOutputTypes.SYSTEM)
+            if (started.programInput == null) print("${adapterKind.title} does not pass the input of the console to the program\n", ProcessOutputTypes.SYSTEM)
             val script = if (RustLineLocations.enabled) RustLineLocations.script() else null
             lineLocations = script?.let { runCatching { Files.createTempFile("rust-line-locations", ".txt") }.getOrNull() }
             val initCommands = script?.takeIf { lineLocations != null }?.let(RustLineLocations::initCommands).orEmpty()
             entryStop.set(initCommands.isNotEmpty())
-            val launch = CodeLldbLaunch.arguments(name, program, spec.programArguments, spec.workingDirectory, spec.environment, rustc, initCommands, entryStop.get())
-            connection.start()
-            connection.request("initialize", CodeLldbLaunch.initializeArguments(), REQUEST_TIMEOUT_MS)
+            val launch = when (adapterKind) {
+                RustDebugAdapterKind.CODELLDB -> CodeLldbLaunch.arguments(name, program, spec.programArguments, spec.workingDirectory, spec.environment, rustc, initCommands, entryStop.get())
+                RustDebugAdapterKind.LLDB_DAP -> LldbDapLaunch.arguments(name, program, spec.programArguments, spec.workingDirectory, spec.environment, rustc, initCommands, entryStop.get())
+            }
+            connection.start(debugAdapter.path.fileName.toString())
+            connection.request("initialize", CodeLldbLaunch.initializeArguments(if (adapterKind == RustDebugAdapterKind.LLDB_DAP) "lldb-dap" else "lldb"), REQUEST_TIMEOUT_MS)
                 .thenCompose { connection.request("launch", launch) }
                 .whenComplete { _, error -> if (error != null && !shutdown.get()) startFailed(errorText(error)) }
         } catch (e: Exception) {
@@ -229,7 +241,7 @@ class RustDebugProcess(
         val byLine = top?.takeIf { reason == "breakpoint" && !ranTo }?.let { frame ->
             frame.getAsJsonObject("source")?.string("path")?.let { lineBreakpoints.at(it, (frame.int("line") ?: 0) - 1) }
         }
-        val breakpoint: XBreakpoint<*>? = byId ?: byLine ?: panicBreakpoints.first().takeIf { reason == "exception" }
+        val breakpoint: XBreakpoint<*>? = byId ?: byLine ?: panicBreakpoints.first().takeIf { reason == "exception" || reason == "function breakpoint" }
         if (breakpoint == null) return session.positionReached(context)
         val expression = breakpoint.logExpressionObject?.expression?.takeIf { it.isNotBlank() }
         val logged = if (expression == null) CompletableFuture.completedFuture<String?>(null)
@@ -252,6 +264,8 @@ class RustDebugProcess(
             "telemetry" -> Unit
             "stderr" -> print(text, ProcessOutputTypes.STDERR)
             "stdout" -> print(text, ProcessOutputTypes.STDOUT)
+            // the commands lldb-dap runs and their echo ("Running initCommands:", "(lldb) command source ..."): the log, unless an error
+            "console" if adapterKind == RustDebugAdapterKind.LLDB_DAP && !text.contains("error", ignoreCase = true) -> LOG.info("lldb-dap: ${text.trim()}")
             // "Console is in 'commands' mode": about the debug console of VS Code, which the IDE does not have
             else -> if (!text.startsWith("Console is in '")) print(text, ProcessOutputTypes.SYSTEM)
         }
@@ -265,7 +279,7 @@ class RustDebugProcess(
         connection.request("stackTrace", json("threadId" to threadId, "startFrame" to startFrame, "levels" to levels), REQUEST_TIMEOUT_MS)
             .thenApply { it.objects("stackFrames") }
 
-    /** [context]: `watch` for Evaluate and watches, `hover` for the editor; never `repl`, which CodeLLDB takes as LLDB commands. */
+    /** [context]: `watch` for Evaluate and watches, `hover` for the editor; never `repl`, which the adapters may take as LLDB commands. */
     fun evaluate(expression: String, frameId: Int?, context: String): CompletableFuture<JsonObject> =
         connection.request("evaluate", json("expression" to expression, "frameId" to frameId, "context" to context), REQUEST_TIMEOUT_MS)
 

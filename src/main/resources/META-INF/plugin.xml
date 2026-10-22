@@ -59,6 +59,9 @@
         <runLineMarkerContributor language="Rust" implementationClass="io.github.rustsupport.run.CargoRunLineMarkerContributor"/>
         <!-- file.rs:10:5 of the compiler, of panics and backtraces as links in every console -->
         <consoleFilterProvider implementation="io.github.rustsupport.run.CargoConsoleFilterProvider"/>
+        <!-- New Project: cargo init. The dialog of IntelliJ IDEA lists generator wizards, the other IDEs directory generators -->
+        <newProjectWizard.generator implementation="io.github.rustsupport.cargo.CargoNewProjectWizard"/>
+        <directoryProjectGenerator implementation="io.github.rustsupport.cargo.CargoProjectGenerator"/>
         <!-- ===== end of Stage 3 ===== -->
     </extensions>
 
@@ -93,7 +96,7 @@
         <!-- ===== end of Stage 3 ===== -->
     </actions>
 
-    <!-- ===== Debugger (package io.github.rustsupport.debugger): the plugin's own DAP client to CodeLLDB on the XDebugger API ===== -->
+    <!-- ===== Debugger (package io.github.rustsupport.debugger): the plugin's own DAP client to CodeLLDB or lldb-dap on the XDebugger API ===== -->
     <!-- GIGA IDE has no intellij.platform.dap; CodeLLDB is found (settings, VS Code / Cursor / VSCodium extension, downloads) or offered -->
     <extensions defaultExtensionNs="com.intellij">
         <programRunner implementation="io.github.rustsupport.debugger.RustDebugRunner"/>

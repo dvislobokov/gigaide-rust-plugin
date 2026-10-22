@@ -98,7 +98,7 @@ class CodeLldbLocator(
     private val downloadRoot: Path,
     private val windows: Boolean = SystemInfo.isWindows,
 ) {
-    private val executable = if (windows) "codelldb.exe" else "codelldb"
+    private val executable = adapterName(windows)
 
     fun find(configured: String?): CodeLldbInstallation? =
         configured?.takeIf { it.isNotBlank() }?.let(::fromSettings) ?: fromEditors() ?: downloaded()
@@ -161,6 +161,8 @@ class CodeLldbLocator(
 
         /** The adapter the debugger uses now, or null: then the download is offered. Touches the file system only. */
         fun current(): CodeLldbInstallation? = default().find(RustDebuggerSettings.getInstance().codelldbPath)
+
+        fun adapterName(windows: Boolean = SystemInfo.isWindows): String = if (windows) "codelldb.exe" else "codelldb"
 
         fun isExecutable(path: Path): Boolean = File(path.toString()).let { it.isFile && it.canExecute() }
     }

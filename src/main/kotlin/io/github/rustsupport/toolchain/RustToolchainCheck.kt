@@ -60,6 +60,7 @@ object RustToolchainCheck {
         for ((tool, need) in TOOLS) {
             val location = tool.locate()
             add(toolItem(tool, need == Need.REQUIRED, need == Need.OPTIONAL, location, location?.let { probe(it.path, "--version") }))
+            tool.configuredPath()?.takeIf { location?.source != RustToolSource.SETTINGS }?.let { add(configuredMissingItem(tool, it)) }
         }
         val rustc = RustTool.RUSTC.find()
         val sysroot = rustc?.let { probe(it.toPath(), "--print", "sysroot") }?.takeIf { it.exitCode == 0 }?.stdout?.trim()
@@ -92,6 +93,10 @@ object RustToolchainCheck {
         val where = "${location.path} (${location.source.text})"
         return RustCheckItem(name, RustCheckLevel.OK, version, where)
     }
+
+    /** The settings name a file that is not there or does not run: the tool came from PATH instead, or not at all. */
+    fun configuredMissingItem(tool: RustTool, path: String): RustCheckItem =
+        RustCheckItem(tool.executable, RustCheckLevel.WARNING, "the path in the settings is not an executable file", "$path; looked for on PATH instead")
 
     /** What a rustup proxy prints for a tool whose component is not installed: "the 'x' component ... is not available/installed", "Unknown binary". */
     fun isMissingComponent(stderr: String): Boolean =

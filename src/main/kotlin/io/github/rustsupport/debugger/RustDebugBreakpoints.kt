@@ -140,7 +140,7 @@ class RustLineBreakpointHandler(private val process: RustDebugProcess) : XBreakp
         val sent = sentLines.values.flatten()
         val bySentId = sent.associateBy { it.id }
         val command = RustLineLocations.command(out, sent.map { it.id to it.line })
-        return process.connection.request("evaluate", json("expression" to command, "context" to "repl"), RustDebugProcess.REQUEST_TIMEOUT_MS)
+        return process.connection.request("evaluate", json("expression" to process.lldbCommand(command), "context" to "repl"), RustDebugProcess.REQUEST_TIMEOUT_MS)
             .thenCompose {
                 val pieces = RustLineLocations.parse(runCatching { Files.readString(out) }.getOrDefault("")).mapNotNull { (id, address) ->
                     bySentId[id]?.let { it to address }
@@ -210,7 +210,7 @@ class RustPanicBreakpointProperties : XBreakpointProperties<RustPanicBreakpointP
 
 typealias RustPanicBreakpoint = XBreakpoint<RustPanicBreakpointProperties>
 
-/** A stop where a panic starts: the `rust_panic` exception filter of CodeLLDB (a breakpoint on `rust_panic` of std). */
+/** A stop where a panic starts: the `rust_panic` exception filter of CodeLLDB, a function breakpoint on `rust_panic` of std with lldb-dap. */
 class RustPanicBreakpointType : XBreakpointType<RustPanicBreakpoint, RustPanicBreakpointProperties>("rust-panic", "Rust Panic Breakpoints") {
     override fun getDisplayText(breakpoint: RustPanicBreakpoint): String = "Rust: on panic"
     override fun createProperties(): RustPanicBreakpointProperties = RustPanicBreakpointProperties()
@@ -222,7 +222,10 @@ class RustPanicBreakpointType : XBreakpointType<RustPanicBreakpoint, RustPanicBr
         creator.createBreakpoint(createProperties()).apply { isEnabled = true }
 }
 
-/** `setExceptionBreakpoints` with `rust_panic` or with nothing: sent even when off, or CodeLLDB applies its default (on). */
+/**
+ * CodeLLDB: `setExceptionBreakpoints` with `rust_panic` or with nothing, sent even when off, or CodeLLDB applies its default (on).
+ * lldb-dap has no such filter: `setFunctionBreakpoints` on `rust_panic`, the function of std every panic goes through.
+ */
 class RustPanicBreakpointHandler(private val process: RustDebugProcess) : XBreakpointHandler<RustPanicBreakpoint>(RustPanicBreakpointType::class.java) {
     private val registered = ConcurrentHashMap.newKeySet<RustPanicBreakpoint>()
 
@@ -238,12 +241,21 @@ class RustPanicBreakpointHandler(private val process: RustDebugProcess) : XBreak
 
     fun first(): RustPanicBreakpoint? = registered.firstOrNull()
 
-    fun send(): CompletableFuture<*> =
-        process.connection.request("setExceptionBreakpoints", arguments(registered.isNotEmpty()), RustDebugProcess.REQUEST_TIMEOUT_MS).exceptionally { null }
+    fun send(): CompletableFuture<*> {
+        val (command, arguments) = when (process.adapterKind) {
+            RustDebugAdapterKind.CODELLDB -> "setExceptionBreakpoints" to arguments(registered.isNotEmpty())
+            RustDebugAdapterKind.LLDB_DAP -> "setFunctionBreakpoints" to functionArguments(registered.isNotEmpty())
+        }
+        return process.connection.request(command, arguments, RustDebugProcess.REQUEST_TIMEOUT_MS).exceptionally { null }
+    }
 
     companion object {
         const val PANIC_FILTER = "rust_panic"
 
         fun arguments(onPanic: Boolean): JsonObject = json("filters" to if (onPanic) listOf(PANIC_FILTER) else emptyList())
+
+        fun functionArguments(onPanic: Boolean): JsonObject = json("breakpoints" to if (onPanic) listOf(mapOf("name" to PANIC_FUNCTION)) else emptyList())
+
+        const val PANIC_FUNCTION = "rust_panic"
     }
 }

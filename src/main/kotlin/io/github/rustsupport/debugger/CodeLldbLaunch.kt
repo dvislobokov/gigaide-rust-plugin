@@ -63,8 +63,8 @@ object CodeLldbLaunch {
     }
 
     /** The answer of the IDE to `initialize`: lines and columns from 1, plain paths, no `runInTerminal` (the console is ours). */
-    fun initializeArguments(): JsonObject = json(
-        "clientID" to "intellij", "clientName" to "IntelliJ Platform", "adapterID" to "lldb", "locale" to "en-us",
+    fun initializeArguments(adapterId: String = "lldb"): JsonObject = json(
+        "clientID" to "intellij", "clientName" to "IntelliJ Platform", "adapterID" to adapterId, "locale" to "en-us",
         "pathFormat" to "path", "linesStartAt1" to true, "columnsStartAt1" to true,
         "supportsVariableType" to true, "supportsVariablePaging" to true, "supportsRunInTerminalRequest" to false,
     )

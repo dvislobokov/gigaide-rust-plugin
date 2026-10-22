@@ -7,14 +7,18 @@ import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.Panel
 import com.intellij.ui.dsl.builder.bindIntText
 import com.intellij.ui.dsl.builder.bindItem
 import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.builder.toNullableProperty
+import io.github.rustsupport.toolchain.RustTool
 import io.github.rustsupport.toolchain.RustToolchainCheck
+import java.io.File
 import javax.swing.JCheckBox
+import kotlin.reflect.KMutableProperty0
 
 /** Settings | Languages & Frameworks | Rust. Apply restarts rust-analyzer. */
 class RustSettingsConfigurable : BoundConfigurable("Rust") {
@@ -25,11 +29,11 @@ class RustSettingsConfigurable : BoundConfigurable("Rust") {
 
     override fun createPanel(): DialogPanel = panel {
         group("Toolchain") {
-            row("cargo:") {
-                textFieldWithBrowseButton(FileChooserDescriptorFactory.singleFile().withTitle("cargo"))
-                    .bindText(settings::cargoPath).align(AlignX.FILL)
-                    .comment("Empty: found on PATH or in ~/.cargo/bin")
-            }
+            toolRow(RustTool.CARGO, settings::cargoPath, "Empty: found on PATH or in ~/.cargo/bin")
+            toolRow(RustTool.RUSTC, settings::rustcPath, "Set: cargo and rust-analyzer build with it (RUSTC), over rust-toolchain.toml")
+            toolRow(RustTool.RUSTFMT, settings::rustfmtPath, "Set: formatting, cargo fmt and rust-analyzer use it (RUSTFMT)")
+            toolRow(RustTool.CLIPPY, settings::clippyPath, "cargo-clippy, with clippy-driver next to it; its directory goes first on PATH of cargo")
+            toolRow(RustTool.RUSTUP, settings::rustupPath, "Installs the missing components")
             row { cell(detected).align(AlignX.FILL) }
             row {
                 button("Check Again") { refreshDetected() }
@@ -39,11 +43,7 @@ class RustSettingsConfigurable : BoundConfigurable("Rust") {
         }
         group("rust-analyzer") {
             row { checkBox("Enable rust-analyzer").bindSelected(settings::languageServerEnabled) }
-            row("Path:") {
-                textFieldWithBrowseButton(FileChooserDescriptorFactory.singleFile().withTitle("rust-analyzer"))
-                    .bindText(settings::rustAnalyzerPath).align(AlignX.FILL)
-                    .comment("Empty: the rustup component")
-            }
+            toolRow(RustTool.RUST_ANALYZER, settings::rustAnalyzerPath, "Empty: the rustup component", "Path:")
             row("Check on save:") {
                 comboBox(listOf("clippy", "check")).bindItem(settings::checkCommand.toNullableProperty())
             }
@@ -76,6 +76,19 @@ class RustSettingsConfigurable : BoundConfigurable("Rust") {
             }
         }
     }.also { refreshDetected() }
+
+    /** A path to [tool]: empty means found on PATH; a file that does not run is told at once, as the tool would be looked for elsewhere. */
+    private fun Panel.toolRow(tool: RustTool, property: KMutableProperty0<String>, comment: String, label: String = "${tool.executable}:") {
+        row(label) {
+            textFieldWithBrowseButton(FileChooserDescriptorFactory.singleFile().withTitle(tool.executable))
+                .bindText(property).align(AlignX.FILL)
+                .comment(comment)
+                .validationOnInput { field ->
+                    val path = field.text.trim()
+                    if (path.isNotEmpty() && !File(path).canExecute()) warning("Not an executable file: ${tool.executable} is looked for on PATH instead") else null
+                }
+        }
+    }
 
     /** rust-analyzer restarts only when what it is started with or told has changed: not for the monitor switch. */
     override fun apply() {
