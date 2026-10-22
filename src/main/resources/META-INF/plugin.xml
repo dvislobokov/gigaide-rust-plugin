@@ -1,5 +1,5 @@
 <idea-plugin>
-    <id>io.github.rustsupport</id>
+    <id>ru.gigaide.rust</id>
     <name>Rust Support</name>
     <vendor>dvislobokov</vendor>
 
