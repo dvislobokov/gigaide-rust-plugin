@@ -48,9 +48,7 @@ class RustAnalyzerLenses : LspCodeLensSupport() {
         }
         if (targets.isEmpty()) return
         val title = if (RustLenses.isImplementations(command.title)) "Implementations" else "Usages"
-        // a popup even for one place: `navigate` goes there at once, and the attribute of a derive is the line above the click (seen
-        // by a user: "nothing happens")
-        val popup = RustTargets.navigator(targets).createPopup(project, title)
+        val popup = RustTargets.popup(project, title, targets)
         if (event != null) popup.show(RelativePoint(event)) else popup.showInFocusCenter()
     }
 

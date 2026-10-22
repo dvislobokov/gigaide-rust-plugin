@@ -7,6 +7,7 @@ import com.intellij.codeInsight.daemon.LineMarkerProviderDescriptor
 import com.intellij.codeInsight.hint.HintManager
 import com.intellij.codeInsight.navigation.PsiTargetNavigator
 import com.intellij.icons.AllIcons
+import com.intellij.ide.util.PsiNavigationSupport
 import com.intellij.openapi.actionSystem.ActionPromoter
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.DataContext
@@ -18,12 +19,17 @@ import com.intellij.openapi.editor.markup.GutterIconRenderer
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.popup.JBPopup
+import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.backend.presentation.TargetPresentation
 import com.intellij.platform.lsp.api.LspClient
+import com.intellij.pom.Navigatable
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.util.elementType
+import com.intellij.ui.ColoredListCellRenderer
+import com.intellij.ui.SimpleTextAttributes
 import com.intellij.util.concurrency.AppExecutorUtil
 import io.github.rustsupport.lang.RustFile
 import io.github.rustsupport.lang.RustLexer
@@ -34,6 +40,7 @@ import org.eclipse.lsp4j.Position
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.function.Supplier
+import javax.swing.JList
 
 /**
  * Which names of a file get an icon of "implements" in the gutter, out of `textDocument/documentSymbol` of rust-analyzer; pure, for the
@@ -372,6 +379,31 @@ object RustTargets {
         val document = element.containingFile?.viewProvider?.document
         val offset = element.textRange.startOffset
         element.containingFile?.virtualFile?.path to (document?.getLineNumber(offset.coerceIn(0, document.textLength)) ?: offset)
+    }
+
+    /**
+     * A chooser of [targets] that is a popup even for one of them: [navigator] goes to a lone target at once (the attribute of a derive
+     * is the line above the lens: "nothing happens", seen by a user), and the target popup of the platform refuses one element
+     * ("Attempted to build a target popup with 1 elements", seen live), so a lone target gets a list popup of its own.
+     */
+    fun popup(project: Project, title: String, targets: List<PsiElement>): JBPopup {
+        if (targets.size > 1) return navigator(targets).createPopup(project, title)
+        val target = targets.single()
+        val shown = ReadAction.compute<TargetPresentation, RuntimeException> { presentation(target) }
+        val place = ReadAction.compute<Navigatable?, RuntimeException> {
+            target.containingFile?.virtualFile?.let { PsiNavigationSupport.getInstance().createNavigatable(project, it, target.textRange.startOffset) }
+        }
+        return JBPopupFactory.getInstance().createPopupChooserBuilder(listOf(shown))
+            .setTitle(title)
+            .setRenderer(object : ColoredListCellRenderer<TargetPresentation>() {
+                override fun customizeCellRenderer(list: JList<out TargetPresentation>, value: TargetPresentation, index: Int, selected: Boolean, hasFocus: Boolean) {
+                    append(value.presentableText)
+                    value.locationText?.let { append("   $it", SimpleTextAttributes.GRAYED_ATTRIBUTES) }
+                    icon = value.locationIcon
+                }
+            })
+            .setItemChosenCallback { place?.navigate(true) }
+            .createPopup()
     }
 
     private fun presentation(element: PsiElement): TargetPresentation {
