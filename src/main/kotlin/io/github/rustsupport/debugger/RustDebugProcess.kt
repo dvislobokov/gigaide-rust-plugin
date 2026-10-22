@@ -29,6 +29,7 @@ import io.github.rustsupport.monitor.MonitorTarget
 import io.github.rustsupport.monitor.RunningRustProcesses
 import io.github.rustsupport.monitor.RustProcessStartListener
 import io.github.rustsupport.run.RustDebugLaunchSpec
+import io.github.rustsupport.toolchain.RustSources
 import io.github.rustsupport.toolchain.RustTool
 import io.github.rustsupport.toolchain.RustToolchain
 import io.github.rustsupport.toolchain.RustToolchainInstaller
@@ -158,7 +159,7 @@ class RustDebugProcess(
             output.stdout.takeIf { output.exitCode == 0 }
         }.getOrNull()
         val sysroot = run("--print", "sysroot")?.trim()?.takeIf { it.isNotEmpty() }
-        return RustcInfo(sysroot, run("-vV")?.let(RustcInfo::commitHash))
+        return RustcInfo(sysroot, run("-vV")?.let(RustcInfo::commitHash), RustSources.configured()?.parent?.toString())
     }
 
     private fun startFailed(reason: String, buildFailed: Boolean = false) {

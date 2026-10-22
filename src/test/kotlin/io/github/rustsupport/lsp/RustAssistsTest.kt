@@ -171,6 +171,22 @@ class RustAssistsTest {
     }
 
     @Test
+    fun `rust-src of the settings goes to rust-analyzer as its library directory`() {
+        val sysroot = java.nio.file.Files.createTempDirectory("sysroot")
+        try {
+            val library = sysroot.resolve("lib/rustlib/src/rust/library")
+            library.resolve("std/src/lib.rs").toFile().apply { parentFile.mkdirs(); writeText("") }
+            val cargo = RustAnalyzerOptions.build(RustSettings().apply { rustSrcPath = sysroot.toString() })["cargo"] as Map<*, *>
+            assertEquals(library.toString(), cargo["sysrootSrc"])
+            // no sources there: the sysroot of rustc, as without the setting
+            val missing = RustAnalyzerOptions.build(RustSettings().apply { rustSrcPath = sysroot.resolve("none").toString() })["cargo"] as Map<*, *>
+            assertFalse(missing.containsKey("sysrootSrc"))
+        } finally {
+            sysroot.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `lsp4j sees the requests the markers and the menu send`() {
         val server = org.eclipse.lsp4j.jsonrpc.services.ServiceEndpoints.getSupportedMethods(RustAnalyzerServer::class.java)
         for (method in listOf("textDocument/implementation", "textDocument/declaration", "textDocument/documentSymbol", "textDocument/codeAction", "codeAction/resolve")) {

@@ -97,13 +97,15 @@ object RustToolchain {
      * The variables of the toolchain for a process of [executable]. PATH: the directories of the tools set in the settings first (cargo
      * runs `rustc` and `cargo-clippy` from PATH, `cargo-clippy` its `clippy-driver` from its own directory), then ~/.cargo/bin (the
      * rustup proxies find the toolchain through it), then PATH, then the directory of [executable] (a cargo found in [systemDirectories]
-     * has its rustc next to it). `RUSTC` and `RUSTFMT` of the settings: cargo, `cargo fmt` and rust-analyzer run those over PATH.
+     * has its rustc next to it). `RUSTC` and `RUSTFMT` of the settings: cargo, `cargo fmt` and rust-analyzer run those over PATH. `RUST_SRC_PATH`: the std sources of
+     * the settings, which rust-analyzer takes over the sysroot.
      */
     fun environment(executable: File? = null): Map<String, String> = buildMap {
         val configured = RustTool.entries.mapNotNull { it.configuredPath() }.mapNotNull { File(it).absoluteFile.parent }
         put("PATH", withDirectories(pathEnv(), listOfNotNull(executable?.absoluteFile?.parent), before = configured))
         RustTool.RUSTC.configuredPath()?.let { put("RUSTC", it) }
         RustTool.RUSTFMT.configuredPath()?.let { put("RUSTFMT", it) }
+        RustSources.configured()?.let { put("RUST_SRC_PATH", it.toString()) }
     }
 
     /** [path] with [before] first, then ~/.cargo/bin, then [after] at the end; nothing twice. */

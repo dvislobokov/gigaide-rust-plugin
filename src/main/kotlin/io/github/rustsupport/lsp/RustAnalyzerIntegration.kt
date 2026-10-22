@@ -47,6 +47,7 @@ import io.github.rustsupport.lang.RustFileType
 import io.github.rustsupport.settings.RustSettings
 import io.github.rustsupport.settings.RustSettingsListener
 import io.github.rustsupport.toolchain.RustProjectDetector
+import io.github.rustsupport.toolchain.RustSources
 import io.github.rustsupport.toolchain.RustTool
 import io.github.rustsupport.toolchain.RustToolchain
 import io.github.rustsupport.toolchain.RustToolchainInstaller
@@ -255,6 +256,9 @@ object RustAnalyzerOptions {
         "cargo" to buildMap<String, Any> {
             put("buildScripts", mapOf("enable" to settings.buildScripts))
             if (features.isNotEmpty()) put("features", features)
+            // std sources outside the sysroot of rustc (RUST_SRC_PATH says the same; this one is in the log of the server)
+            settings.rustSrcPath.trim().takeIf { it.isNotEmpty() }?.let { runCatching { RustSources.library(Path.of(it)) }.getOrNull() }
+                ?.let { put("sysrootSrc", it.toString()) }
         },
         "procMacro" to mapOf("enable" to settings.procMacros),
         // indexing every crate of the dependency graph at start: fast first completion, at the price of memory for crates never opened

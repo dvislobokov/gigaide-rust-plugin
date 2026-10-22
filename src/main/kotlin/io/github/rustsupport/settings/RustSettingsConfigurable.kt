@@ -14,9 +14,11 @@ import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.builder.toNullableProperty
+import io.github.rustsupport.toolchain.RustSources
 import io.github.rustsupport.toolchain.RustTool
 import io.github.rustsupport.toolchain.RustToolchainCheck
 import java.io.File
+import java.nio.file.Path
 import javax.swing.JCheckBox
 import kotlin.reflect.KMutableProperty0
 
@@ -34,6 +36,17 @@ class RustSettingsConfigurable : BoundConfigurable("Rust") {
             toolRow(RustTool.RUSTFMT, settings::rustfmtPath, "Set: formatting, cargo fmt and rust-analyzer use it (RUSTFMT)")
             toolRow(RustTool.CLIPPY, settings::clippyPath, "cargo-clippy, with clippy-driver next to it; its directory goes first on PATH of cargo")
             toolRow(RustTool.RUSTUP, settings::rustupPath, "Installs the missing components")
+            row("rust-src:") {
+                textFieldWithBrowseButton(FileChooserDescriptorFactory.createSingleFolderDescriptor().withTitle("rust-src"))
+                    .bindText(settings::rustSrcPath).align(AlignX.FILL)
+                    .comment("Sources of std: a sysroot, its lib/rustlib/src/rust or library. Empty: the sysroot of rustc (RUST_SRC_PATH)")
+                    .validationOnInput { field ->
+                        val path = field.text.trim()
+                        if (path.isNotEmpty() && runCatching { RustSources.library(Path.of(path)) }.getOrNull() == null) {
+                            warning("No library/std/src/lib.rs there: the sources of the sysroot of rustc are used")
+                        } else null
+                    }
+            }
             row { cell(detected).align(AlignX.FILL) }
             row {
                 button("Check Again") { refreshDetected() }

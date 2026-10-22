@@ -20,6 +20,8 @@ class RustSettings : PersistentStateComponent<RustSettings> {
     /** `cargo-clippy`; `cargo clippy` runs the first one on PATH, and it runs the `clippy-driver` next to it. */
     var clippyPath: String = ""
     var rustupPath: String = ""
+    /** The sources of std (`rust-src`): the sysroot, `lib/rustlib/src/rust` or its `library`; empty: the sysroot of rustc. */
+    var rustSrcPath: String = ""
     /** What rust-analyzer runs on save: `clippy` or `check`. */
     var checkCommand: String = "clippy"
     var procMacros: Boolean = true
@@ -38,7 +40,7 @@ class RustSettings : PersistentStateComponent<RustSettings> {
 
     /** What rust-analyzer is started with or told: a change of these restarts it. */
     fun serverState(): List<Any> =
-        listOf(languageServerEnabled, rustAnalyzerPath, cargoPath, rustcPath, rustfmtPath, clippyPath, checkCommand, procMacros, buildScripts, inlayHints, primeCaches, lruCapacity, codeLens)
+        listOf(languageServerEnabled, rustAnalyzerPath, cargoPath, rustcPath, rustfmtPath, clippyPath, rustSrcPath, checkCommand, procMacros, buildScripts, inlayHints, primeCaches, lruCapacity, codeLens)
 
     override fun getState(): RustSettings = this
     override fun loadState(state: RustSettings) = XmlSerializerUtil.copyBean(state, this)

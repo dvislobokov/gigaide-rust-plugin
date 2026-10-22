@@ -4,9 +4,12 @@ import com.google.gson.JsonObject
 import java.io.File
 
 /** What `rustc -vV` and `rustc --print sysroot` tell the debugger: where the Rust formatters and the sources of std are. */
-data class RustcInfo(val sysroot: String?, val commitHash: String?) {
-    /** `<sysroot>/lib/rustlib/src/rust`: the sources of std, when the `rust-src` component is installed. */
-    fun stdSources(): String? = sysroot?.let { File(it, "lib/rustlib/src/rust") }?.takeIf { it.isDirectory }?.path
+data class RustcInfo(val sysroot: String?, val commitHash: String?, val configuredSources: String? = null) {
+    /**
+     * `<sysroot>/lib/rustlib/src/rust`: the sources of std, when the `rust-src` component is installed; [configuredSources] (the parent of
+     * `library` of the rust-src path in the settings) first.
+     */
+    fun stdSources(): String? = configuredSources ?: sysroot?.let { File(it, "lib/rustlib/src/rust") }?.takeIf { it.isDirectory }?.path
 
     companion object {
         /** The `commit-hash:` line of `rustc -vV`. */

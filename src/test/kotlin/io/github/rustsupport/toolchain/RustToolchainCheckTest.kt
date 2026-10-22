@@ -55,6 +55,36 @@ class RustToolchainCheckTest {
     }
 
     @Test
+    fun `rust-src from the settings, else a rustup toolchain of the same version is pointed at`() {
+        val root = Files.createTempDirectory("rustup")
+        try {
+            val copied = root.resolve("local") // rustc copied into ~/.local/bin: its sysroot is ~/.local
+            val toolchain = root.resolve("toolchains/1.97.1-aarch64-apple-darwin")
+            val library = toolchain.resolve("lib/rustlib/src/rust/library")
+            library.resolve("std/src/lib.rs").toFile().apply { parentFile.mkdirs(); writeText("") }
+            root.resolve("toolchains/1.96.0-aarch64-apple-darwin/lib/rustlib/src/rust/library/std/src/lib.rs").toFile().apply { parentFile.mkdirs(); writeText("") }
+
+            // the path as people give it: the sysroot, lib/rustlib/src/rust, library
+            for (given in listOf(toolchain, toolchain.resolve("lib/rustlib/src/rust"), library)) assertEquals(library, RustSources.library(given))
+            assertNull(RustSources.library(copied))
+
+            assertEquals("1.97.1", RustSources.version("rustc 1.97.1 (8bab26f4f 2026-07-14)\n"))
+            assertEquals(library, RustSources.inRustup(root, "1.97.1"))
+            assertNull(RustSources.inRustup(root, "1.98.0"))
+
+            val hint = RustToolchainCheck.rustSrcItem(copied, null, RustSources.inRustup(root, "1.97.1"))
+            assertEquals(RustCheckLevel.WARNING, hint.level)
+            assertNull(hint.component) // rustup says "up to date": installing again is no fix
+            assertTrue(hint.detail!!, hint.detail!!.contains(library.toString()) && hint.detail!!.contains(copied.toString()))
+
+            assertEquals(RustCheckLevel.OK, RustToolchainCheck.rustSrcItem(copied, toolchain.toString()).level)
+            assertEquals(RustCheckLevel.WARNING, RustToolchainCheck.rustSrcItem(toolchain, copied.toString()).level)
+        } finally {
+            root.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `msvc without the sdk is an error that names Git's linker`() {
         val incomplete = Msvc.State(vcTools = true, complete = false, windowsSdk = false, installation = "C:/VS/BuildTools")
         val item = RustToolchainCheck.msvcItem(incomplete, Path.of("C:/Program Files/Git/usr/bin/link.exe"))

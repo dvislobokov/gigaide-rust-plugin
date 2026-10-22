@@ -64,7 +64,10 @@ object RustToolchainCheck {
         }
         val rustc = RustTool.RUSTC.find()
         val sysroot = rustc?.let { probe(it.toPath(), "--print", "sysroot") }?.takeIf { it.exitCode == 0 }?.stdout?.trim()
-        if (rustc != null) add(rustSrcItem(sysroot?.let { Path.of(it) }))
+        if (rustc != null) {
+            val version = RustSources.version(probe(rustc.toPath(), "--version")?.stdout)
+            add(rustSrcItem(sysroot?.let { Path.of(it) }, RustSources.configuredPath(), RustSources.inRustup(RustSources.rustupHome(), version)))
+        }
         val host = rustc?.let { probe(it.toPath(), "-vV") }?.stdout?.lineSequence()?.firstOrNull { it.startsWith("host:") }?.substringAfter(':')?.trim()
         if (SystemInfo.isWindows && host?.endsWith("-msvc") == true) add(msvcItem(Msvc.detect(), Msvc.firstLinkOnPath(RustToolchain.pathEnv())))
     }
@@ -103,12 +106,27 @@ object RustToolchainCheck {
         stderr.contains("component", ignoreCase = true) && (stderr.contains("not available") || stderr.contains("not installed")) ||
             stderr.contains("Unknown binary", ignoreCase = true)
 
-    fun rustSrcItem(sysroot: Path?): RustCheckItem {
-        val lib = sysroot?.resolve("lib/rustlib/src/rust/library/std/src/lib.rs")
-        return if (lib != null && File(lib.toString()).isFile) {
-            RustCheckItem("rust-src", RustCheckLevel.OK, "installed", "Sources of std for navigation and completion")
+    /**
+     * The std sources: the path of the settings ([configured]), else the ones of the [sysroot] of rustc. Missing, the place they were
+     * looked for is told, and a toolchain of rustup of the same version that has them ([inRustup]): a rustc copied out of rustup
+     * (~/.local/bin) has a sysroot without them, and `rustup component add rust-src` says "up to date" (seen on a user's Mac).
+     */
+    fun rustSrcItem(sysroot: Path?, configured: String? = null, inRustup: Path? = null): RustCheckItem {
+        if (configured != null) {
+            val library = runCatching { RustSources.library(Path.of(configured)) }.getOrNull()
+            return if (library != null) {
+                RustCheckItem("rust-src", RustCheckLevel.OK, "from the settings", "$library")
+            } else {
+                RustCheckItem("rust-src", RustCheckLevel.WARNING, "no sources at the path in the settings", "$configured has no library/std/src/lib.rs")
+            }
+        }
+        val library = sysroot?.let(RustSources::library)
+        if (library != null) return RustCheckItem("rust-src", RustCheckLevel.OK, "installed", "Sources of std for navigation and completion ($library)")
+        val looked = sysroot?.let { " Looked in ${it.resolve("lib/rustlib/src/rust/library")}." }.orEmpty()
+        return if (inRustup != null) {
+            RustCheckItem("rust-src", RustCheckLevel.WARNING, "not in the sysroot of rustc", "Found in $inRustup: set it as the path to rust-src above.$looked")
         } else {
-            RustCheckItem("rust-src", RustCheckLevel.WARNING, "not installed", "rust-analyzer cannot go into std, core and alloc; rustup component add rust-src", "rust-src")
+            RustCheckItem("rust-src", RustCheckLevel.WARNING, "not installed", "rust-analyzer cannot go into std, core and alloc; rustup component add rust-src, or set the path to rust-src.$looked", "rust-src")
         }
     }
 
