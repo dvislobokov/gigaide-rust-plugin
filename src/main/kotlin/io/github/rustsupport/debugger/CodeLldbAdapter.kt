@@ -52,7 +52,7 @@ class CodeLldbAdapter private constructor(private val process: Process, private 
                 .withWorkingDirectory(workDirectory?.let { Path.of(it) })
                 .withParentEnvironmentType(GeneralCommandLine.ParentEnvironmentType.CONSOLE)
                 // rustc and cargo for `lang_support/rust.py` when the sysroot was not known
-                .withEnvironment("PATH", RustToolchain.withCargoBin(System.getenv("PATH")))
+                .withEnvironment("PATH", RustToolchain.withDirectories(RustToolchain.pathEnv()))
 
         /** Starts the adapter and waits for it to connect; [print] gets what it and the program print. */
         fun start(adapter: Path, settings: JsonObject, workDirectory: String?, print: (String, Key<*>) -> Unit): CodeLldbAdapter {

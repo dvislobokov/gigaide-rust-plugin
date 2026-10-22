@@ -65,7 +65,7 @@ object RustToolchainCheck {
         val sysroot = rustc?.let { probe(it.toPath(), "--print", "sysroot") }?.takeIf { it.exitCode == 0 }?.stdout?.trim()
         if (rustc != null) add(rustSrcItem(sysroot?.let { Path.of(it) }))
         val host = rustc?.let { probe(it.toPath(), "-vV") }?.stdout?.lineSequence()?.firstOrNull { it.startsWith("host:") }?.substringAfter(':')?.trim()
-        if (SystemInfo.isWindows && host?.endsWith("-msvc") == true) add(msvcItem(Msvc.detect(), Msvc.firstLinkOnPath(System.getenv("PATH"))))
+        if (SystemInfo.isWindows && host?.endsWith("-msvc") == true) add(msvcItem(Msvc.detect(), Msvc.firstLinkOnPath(RustToolchain.pathEnv())))
     }
 
     fun toolItem(tool: RustTool, required: Boolean, optional: Boolean, location: RustToolLocation?, probe: RustProbe?): RustCheckItem {

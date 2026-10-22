@@ -21,9 +21,21 @@ class RustToolchainTest {
     }
 
     @Test
-    fun `no exe suffix off Windows`() {
+    fun `no exe suffix off Windows, and the directories of installers after cargo home`() {
         val candidates = RustToolchain.candidates(RustTool.CARGO, null, null, Path.of("/home/u/.cargo"), windows = false)
-        assertEquals(listOf(Path.of("/home/u/.cargo", "bin", "cargo")), candidates)
+        assertEquals(
+            listOf("/home/u/.cargo/bin", "/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin", "/home/linuxbrew/.linuxbrew/bin").map { Path.of(it, "cargo") },
+            candidates,
+        )
+    }
+
+    @Test
+    fun `PATH of commands gets cargo home first and the directory of the tool last`() {
+        val bin = RustToolchain.cargoHome().resolve("bin").toString()
+        val sep = File.pathSeparator
+        assertEquals(listOf(bin, "/a", "/usr/local/bin").joinToString(sep), RustToolchain.withDirectories("/a", listOf("/usr/local/bin")))
+        assertEquals(listOf("/a", bin).joinToString(sep), RustToolchain.withDirectories(listOf("/a", bin).joinToString(sep), listOf("/a")))
+        assertEquals(bin, RustToolchain.withDirectories(null))
     }
 
     @Test
