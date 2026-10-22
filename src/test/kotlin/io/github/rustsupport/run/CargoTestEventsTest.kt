@@ -211,4 +211,70 @@ class CargoTestEventsTest {
         assertNull(CargoTestEvents.panicMessage("no panic here"))
         assertEquals("a::b", CargoTestEvents.testName("a::b - should panic with 'x'"))
     }
+
+    @Test
+    fun `hyperlinks of cargo do not hide a test binary`() {
+        val esc = "\u001B"
+        val run = run(
+            listOf(
+                "    ${esc}[1m${esc}[92mFinished${esc}[0m ${esc}]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles${esc}\\`test` profile${esc}]8;;${esc}\\ target(s) in 0.05s",
+                "     ${esc}[1m${esc}[92mRunning${esc}[0m ${esc}]8;;file:///C:/w/tests/api.rs${esc}\\tests\\api.rs${esc}]8;;${esc}\\ (target\\debug\\deps\\api-7dc8.exe)",
+                "",
+                "running 1 test",
+                "test add_from_outside ... ok",
+                "",
+                "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s",
+            ).joinToString("\n"),
+        )
+        assertEquals("testSuiteStarted s1 name=tests\\api.rs parent=0", run.events.first())
+        assertTrue("testFinished s1|add_from_outside" in run.events)
+    }
+
+    @Test
+    fun `with show-output what the passing tests printed goes to them`() {
+        val run = run(
+            """
+                 Running unittests src/lib.rs (target/debug/deps/app-1f2e.exe)
+
+            running 3 tests
+            test tests::quiet ... ok
+            test tests::talks ... ok
+            test tests::breaks ... FAILED
+
+            successes:
+
+            ---- tests::talks stdout ----
+            hello
+            world
+
+
+            successes:
+                tests::quiet
+                tests::talks
+
+            failures:
+
+            ---- tests::breaks stdout ----
+            thread 'tests::breaks' panicked at src/lib.rs:9:9:
+            boom
+
+
+            failures:
+                tests::breaks
+
+            test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+            """.trimIndent(),
+        )
+        assertEquals(
+            listOf(
+                "testStdOut s1|tests::talks out=hello\nworld",
+                "testStdOut s1|tests::breaks out=thread 'tests::breaks' panicked at src/lib.rs:9:9:\nboom",
+                "testFailed s1|tests::breaks message=boom",
+                "testFinished s1|tests::breaks",
+            ),
+            run.events.filter { it.startsWith("testStdOut") || it.startsWith("testFailed") || it.startsWith("testFinished s1|tests::breaks") },
+        )
+        assertTrue(run.console.none { "hello" in it || "world" in it })
+        assertTrue(run.console.any { it.trim() == "tests::talks" })
+    }
 }

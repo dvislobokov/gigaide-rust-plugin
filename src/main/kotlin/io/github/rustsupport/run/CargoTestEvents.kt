@@ -8,8 +8,9 @@ import com.intellij.execution.testframework.sm.ServiceMessageBuilder
  * A test binary (`Running unittests src/lib.rs (target/debug/deps/app-1f2e.exe)`, `Doc-tests app`) is a suite, the modules of a test
  * path (`tests::nested::it_works`) are suites under it. libtest reports a test only when it is over (`test a::b ... ok`), so a test
  * starts and ends at once; a failed one stays open until its section `---- a::b stdout ----` is read, whose text becomes its output
- * and the panic message the message of the failure. Lines that are no events (the build, the program printing with `--nocapture`)
- * are left to the console ([Output.toConsole]).
+ * and the panic message the message of the failure. With `--show-output` the passing tests have such sections too, under
+ * `successes:` after the run of the binary: their text goes to the finished tests (the tree takes the output of a finished node).
+ * Lines that are no events (the build, the program printing with `--nocapture`) are left to the console ([Output.toConsole]).
  */
 class CargoTestEvents(
     /** The location hint of a node: the source file of the binary (relative, as cargo prints it, may be empty) and the test path. */
@@ -20,6 +21,8 @@ class CargoTestEvents(
     private var section = Section.NONE
     private var failureName: String? = null
     private val failureOutput = StringBuilder()
+    private var successName: String? = null
+    private val successOutput = StringBuilder()
 
     /** A test whose `test x ... ` came without the result: it printed in between (`--nocapture`). */
     private var awaitingResult: String? = null
@@ -65,9 +68,22 @@ class CargoTestEvents(
                 return Output(result, toConsole = false)
             }
         }
-        if (section == Section.SUCCESSES && line == "failures:") {
-            section = Section.FAILURES
-            return Output(result, toConsole = false)
+        if (section == Section.SUCCESSES) {
+            FAILURE_HEADER.matchEntire(line)?.let { match ->
+                finishSuccess(current, result)
+                successName = match.groupValues[1]
+                return Output(result, toConsole = false)
+            }
+            // `successes:` again is the list of their names, which stays in the console
+            if (line == "successes:" || line == "failures:" || line.startsWith("test result: ")) finishSuccess(current, result)
+            else if (successName != null) {
+                successOutput.append(rawLine.trimEnd('\r', '\n')).append('\n')
+                return Output(result, toConsole = false)
+            }
+            if (line == "failures:") {
+                section = Section.FAILURES
+                return Output(result, toConsole = false)
+            }
         }
         when {
             line.startsWith("running ") && RUNNING_TESTS.matches(line) -> return Output(result, toConsole = false)
@@ -108,6 +124,7 @@ class CargoTestEvents(
     fun finish(): List<String> {
         val result = ArrayList<String>()
         suite?.let { current ->
+            finishSuccess(current, result)
             finishFailure(current, result)
             finishSuite(current, result)
         }
@@ -116,6 +133,7 @@ class CargoTestEvents(
 
     private fun startSuite(name: String, source: String, doc: Boolean, result: MutableList<String>) {
         suite?.let { previous ->
+            finishSuccess(previous, result)
             finishFailure(previous, result)
             finishSuite(previous, result)
         }
@@ -190,6 +208,14 @@ class CargoTestEvents(
         failed(current, name, panicMessage(output) ?: "Failed", output, result)
     }
 
+    private fun finishSuccess(current: Suite, result: MutableList<String>) {
+        val name = successName ?: return
+        successName = null
+        val output = successOutput.toString().trim('\n')
+        successOutput.setLength(0)
+        if (output.isNotEmpty()) result += ServiceMessageBuilder.testStdOut(leaf(current, name)).addAttribute("nodeId", nodeId(current, name)).addAttribute("out", output + "\n").toString()
+    }
+
     private fun failed(current: Suite, name: String, message: String, output: String, result: MutableList<String>) {
         val id = nodeId(current, name)
         val leaf = leaf(current, name)
@@ -208,7 +234,11 @@ class CargoTestEvents(
 
     companion object {
         const val ROOT = "0"
-        private val ANSI = Regex("""\u001B\[[0-9;?]*[A-Za-z]""")
+        /**
+         * The colors, and the hyperlinks of cargo (OSC 8: `ESC ]8;;url ESC \`), which it prints when it takes the terminal for one that
+         * supports them (seen live: `WT_SESSION` of Windows Terminal inherited by the IDE); a `Running` line with them was no suite.
+         */
+        private val ANSI = Regex("""\u001B\[[0-9;?]*[A-Za-z]|\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)""")
 
         /** `Running unittests src/lib.rs (target/debug/deps/app-1f2e.exe)`, `Running tests/it.rs (...)`, `Running target/debug/deps/app-1f2e` (old cargo). */
         private val RUNNING = Regex("""Running (?:unittests )?(.+?) \((.+)\)|Running (\S+)""")

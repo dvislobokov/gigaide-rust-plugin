@@ -9,7 +9,7 @@ import com.intellij.execution.configurations.CommandLineState
 import com.intellij.execution.configurations.RunProfileState
 import com.intellij.execution.process.KillableColoredProcessHandler
 import com.intellij.execution.process.ProcessHandler
-import com.intellij.execution.process.ProcessOutputTypes
+import com.intellij.execution.process.ProcessOutputType
 import com.intellij.execution.process.ProcessTerminatedListener
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.execution.runners.ProgramRunner
@@ -34,14 +34,18 @@ import com.intellij.openapi.vfs.VirtualFileVisitor
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.execution.ParametersListUtil
-import jetbrains.buildServer.messages.serviceMessages.ServiceMessageVisitor
 
 const val CARGO_TEST_FRAMEWORK = "CargoTest"
 private const val LOCATION_PROTOCOL = "cargotest"
 
 /** `cargo test` / `cargo bench` with the test tree of the platform, which grows while the tests run. */
 class CargoTestRunState(private val configuration: CargoRunConfiguration, environment: ExecutionEnvironment) : CommandLineState(environment) {
-    override fun startProcess(): ProcessHandler = KillableColoredProcessHandler(configuration.commandLine()).also { ProcessTerminatedListener.attach(it) }
+    /**
+     * stderr in the pipe of stdout: cargo prints `Running tests\api.rs (...)` to stderr, the test binary its tests to stdout, and two
+     * pipes read apart let the tests come before their binary (seen live: the suite of the binary stayed empty).
+     */
+    override fun startProcess(): ProcessHandler =
+        KillableColoredProcessHandler(configuration.commandLine().withRedirectErrorStream(true)).also { ProcessTerminatedListener.attach(it) }
 
     override fun execute(executor: Executor, runner: ProgramRunner<*>): ExecutionResult {
         val handler = startProcess()
@@ -77,21 +81,67 @@ class CargoTestConsoleProperties(private val configuration: CargoRunConfiguratio
     }
 }
 
-/** Every complete line of the output through [CargoTestEvents]; what is not an event goes to the console as it came. */
+/**
+ * Every complete line of the output through [CargoTestEvents]; what is not an event goes to the console as it came, in its colors.
+ * The lines are put together here: the colored process handler gives a line in pieces of one color each, which the splitter of the
+ * platform passes on one by one even when it waits for line ends (seen live: `Running` and `tests\api.rs (...)` came apart, and
+ * no test binary was found).
+ */
 class CargoTestEventsConverter(testFrameworkName: String, private val events: CargoTestEvents) :
     OutputToGeneralTestEventsConverter(testFrameworkName, true, false, false) {
 
-    override fun processServiceMessages(text: String, outputType: Key<*>, visitor: ServiceMessageVisitor): Boolean {
-        val output = synchronized(events) { events.convert(text) }
-        for (message in output.messages) super.processServiceMessages(message, outputType, visitor)
-        // false for a line that is no service message: the platform prints it
-        return if (output.toConsole) super.processServiceMessages(text, outputType, visitor) else true
+    private val lines = CargoOutputLines<Key<*>>()
+
+    override fun process(text: String, outputType: Key<*>) {
+        val stream = (outputType as? ProcessOutputType)?.baseOutputType
+        if (stream == null || stream == ProcessOutputType.SYSTEM) return super.process(text, outputType)
+        synchronized(this) { lines.add(stream, text, outputType).forEach(::line) }
+    }
+
+    private fun line(pieces: List<CargoOutputLines.Piece<Key<*>>>) {
+        val output = synchronized(events) { events.convert(CargoOutputLines.text(pieces)) }
+        for (message in output.messages) super.process(message + "\n", ProcessOutputType.STDOUT)
+        if (output.toConsole) for (piece in pieces) super.process(piece.text, piece.type)
     }
 
     override fun flushBufferOnProcessTermination(exitCode: Int) {
-        super.flushBufferOnProcessTermination(exitCode)
+        synchronized(this) { lines.rest().forEach(::line) }
         val messages = synchronized(events) { events.finish() }
-        for (message in messages) processConsistentText(message + "\n", ProcessOutputTypes.STDOUT)
+        for (message in messages) super.process(message + "\n", ProcessOutputType.STDOUT)
+        super.flushBufferOnProcessTermination(exitCode)
+    }
+}
+
+/** The lines of the streams of a process given in pieces of one color [T] each, put together; pure, for the tests. */
+class CargoOutputLines<T> {
+    class Piece<T>(val text: String, val type: T)
+
+    /** The pieces of the unfinished line of each stream (stdout, stderr). */
+    private val pending = LinkedHashMap<Any, MutableList<Piece<T>>>()
+
+    /** [text] of [stream] in the color [type]: the lines it completes, in pieces. */
+    fun add(stream: Any, text: String, type: T): List<List<Piece<T>>> {
+        val result = ArrayList<List<Piece<T>>>()
+        var rest = text
+        while (rest.isNotEmpty()) {
+            val pieces = pending.getOrPut(stream) { ArrayList() }
+            val end = rest.indexOf('\n')
+            if (end < 0) {
+                pieces += Piece(rest, type)
+                break
+            }
+            pieces += Piece(rest.substring(0, end + 1), type)
+            rest = rest.substring(end + 1)
+            result += pending.remove(stream)!!
+        }
+        return result
+    }
+
+    /** The unfinished lines, at the end of the process. */
+    fun rest(): List<List<Piece<T>>> = pending.values.toList().also { pending.clear() }
+
+    companion object {
+        fun <T> text(pieces: List<Piece<T>>): String = pieces.joinToString("") { it.text }
     }
 }
 

@@ -25,7 +25,7 @@ class CargoInvocationTest {
 
     @Test
     fun `a target kind with a name is skipped while the name is empty`() {
-        assertEquals(listOf("test"), CargoInvocation(listOf("test"), targetKind = CargoTargetKind.TEST, targetName = " ").arguments(color = false))
+        assertEquals(listOf("build"), CargoInvocation(listOf("build"), targetKind = CargoTargetKind.TEST, targetName = " ").arguments(color = false))
     }
 
     @Test
@@ -67,7 +67,7 @@ class CargoInvocationTest {
 
     @Test
     fun `parse and arguments round trip`() {
-        val args = listOf("test", "--package", "app", "--test", "integration", "--", "it_works", "--exact")
+        val args = listOf("test", "--package", "app", "--test", "integration", "--", "it_works", "--exact", "--show-output")
         assertEquals(args, CargoInvocation.parse(args).arguments(color = false))
     }
 
@@ -77,5 +77,14 @@ class CargoInvocationTest {
             listOf("a::b", "c", "--exact", "--nocapture", "--test-threads", "1"),
             CargoTestArguments.rerun(listOf("tests::", "--nocapture", "--test-threads", "1", "--exact"), listOf("a::b", "c")),
         )
+    }
+
+    @Test
+    fun `cargo test shows the output of the passing tests unless told otherwise`() {
+        assertEquals(listOf("test", "--lib", "--", "--show-output"), CargoInvocation(listOf("test"), targetKind = CargoTargetKind.LIB).arguments(color = false))
+        assertEquals(listOf("a::", "--show-output"), CargoInvocation(listOf("test"), programArguments = listOf("a::")).harnessArguments())
+        assertEquals(listOf("a::", "--nocapture"), CargoInvocation(listOf("test"), programArguments = listOf("a::", "--nocapture")).harnessArguments())
+        assertEquals(listOf("a", "--exact", "--show-output"), CargoInvocation(listOf("test"), programArguments = listOf("a", "--exact", "--show-output")).harnessArguments())
+        assertEquals(listOf("bench"), CargoInvocation(listOf("bench")).arguments(color = false))
     }
 }

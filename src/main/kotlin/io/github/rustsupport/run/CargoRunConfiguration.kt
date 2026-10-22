@@ -105,7 +105,9 @@ class CargoRunConfiguration(project: Project, factory: ConfigurationFactory, nam
 
     fun commandLine(): GeneralCommandLine {
         val cargo = RustTool.CARGO.find() ?: throw ExecutionException("cargo is not found")
+        // no hyperlinks of cargo (`ESC ]8;;`): the console shows them as text (seen live: an IDE started from Windows Terminal has its WT_SESSION)
         return RustToolchain.commandLine(cargo, workingDirectory(), *invocation().arguments().toTypedArray())
+            .withEnvironment("CARGO_TERM_HYPERLINKS", "false")
             .withEnvironment(options.environment)
             .withParentEnvironmentType(if (options.passParentEnvironment) GeneralCommandLine.ParentEnvironmentType.CONSOLE else GeneralCommandLine.ParentEnvironmentType.NONE)
     }

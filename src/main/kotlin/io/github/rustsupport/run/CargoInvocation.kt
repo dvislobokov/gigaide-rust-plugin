@@ -59,11 +59,19 @@ data class CargoInvocation(
         if (color && subcommand in COLORED) add("--color=always")
         addAll(selection())
         addAll(cargoArguments)
-        if (programArguments.isNotEmpty()) {
+        val program = harnessArguments()
+        if (program.isNotEmpty()) {
             add("--")
-            addAll(programArguments)
+            addAll(program)
         }
     }
+
+    /**
+     * [programArguments], for `cargo test` with `--show-output`: libtest keeps what a passing test printed to itself without it, and the
+     * test tree shows no output of the green tests. Not with `--nocapture`, whose output goes to the console as it comes.
+     */
+    fun harnessArguments(): List<String> =
+        if (subcommand == "test" && programArguments.none { it == "--show-output" || it == "--nocapture" }) programArguments + "--show-output" else programArguments
 
     /** Package, target and features: what a build for the debugger must keep. */
     fun selection(): List<String> = buildList {
