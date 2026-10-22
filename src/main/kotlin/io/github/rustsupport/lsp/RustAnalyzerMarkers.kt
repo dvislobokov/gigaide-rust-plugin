@@ -367,9 +367,30 @@ object RustTargets {
         val document = file?.viewProvider?.document
         val offset = element.textRange.startOffset
         val line = document?.getLineNumber(offset.coerceIn(0, document.textLength))
-        val text = if (document != null && line != null) document.charsSequence.subSequence(document.getLineStartOffset(line), document.getLineEndOffset(line)).toString().trim() else element.text
+        val text = if (document != null && line != null) {
+            val start = document.getLineStartOffset(line)
+            val lineText = document.charsSequence.subSequence(start, document.getLineEndOffset(line)).toString()
+            derived(lineText, offset - start) ?: lineText.trim()
+        } else element.text
         val location = listOfNotNull(file?.name, line?.let { (it + 1).toString() }).joinToString(":")
         return TargetPresentation.builder(text.ifEmpty { element.text }).locationText(location, file?.getIcon(0)).presentation()
+    }
+
+    private val DERIVE = Regex("""^\s*#\[\s*derive\s*\(""")
+
+    /**
+     * `#[derive(Debug)]` for a place on the name [column] of [line] in a derive: the impls a derive makes have no source of their own,
+     * and rust-analyzer gives each the name of its trait in the attribute, so the whole line would be the same for all of them (seen by a
+     * user: three `#[derive(Debug, Clone, Deserialize)]`). Null for any other place.
+     */
+    fun derived(line: String, column: Int): String? {
+        val list = DERIVE.find(line) ?: return null
+        if (column < list.range.last + 1 || column >= line.length || !Character.isJavaIdentifierPart(line[column])) return null
+        var start = column
+        while (start > 0 && (Character.isJavaIdentifierPart(line[start - 1]) || line[start - 1] == ':')) start--
+        var end = column
+        while (end < line.length && (Character.isJavaIdentifierPart(line[end]) || line[end] == ':')) end++
+        return "#[derive(${line.substring(start, end)})]"
     }
 }
 

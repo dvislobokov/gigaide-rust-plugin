@@ -148,5 +148,18 @@ class RustImplMarkersTest {
         assertFalse(RustImplMarkers.countsImplementations(Kind.IMPL_MEMBER))
     }
 
+    @Test
+    fun `the impls of a derive are told apart by their trait`() {
+        val line = "#[derive(Debug, Clone, serde::Deserialize)]"
+        assertEquals("#[derive(Debug)]", RustTargets.derived(line, line.indexOf("Debug")))
+        assertEquals("#[derive(Clone)]", RustTargets.derived(line, line.indexOf("Clone")))
+        assertEquals("#[derive(serde::Deserialize)]", RustTargets.derived(line, line.indexOf("Deserialize")))
+        assertEquals("#[derive(serde::Deserialize)]", RustTargets.derived("    $line", 4 + line.indexOf("serde")))
+        // the attribute itself, another attribute, an impl: the line as it is
+        assertNull(RustTargets.derived(line, 0))
+        assertNull(RustTargets.derived("#[serde(default)]", 8))
+        assertNull(RustTargets.derived("impl Debug for Config {", 5))
+    }
+
     private fun String.startsWith(prefix: String, at: Int) = regionMatches(at, prefix, 0, prefix.length)
 }
